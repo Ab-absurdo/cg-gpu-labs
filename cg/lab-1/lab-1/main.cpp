@@ -15,6 +15,11 @@
 #pragma comment( lib, "dxgi.lib" )        // directx graphics interface
 #pragma comment( lib, "d3dcompiler.lib" ) // shader compiler
 
+ID3D11Device* device_ptr = NULL;
+ID3D11DeviceContext* device_context_ptr = NULL;
+IDXGISwapChain* swap_chain_ptr = NULL;
+ID3D11RenderTargetView* render_target_view_ptr = NULL;
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
@@ -54,11 +59,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
     ShowWindow(hwnd, nCmdShow);
 
-    ID3D11Device* device_ptr = NULL;
-    ID3D11DeviceContext* device_context_ptr = NULL;
-    IDXGISwapChain* swap_chain_ptr = NULL;
-    ID3D11RenderTargetView* render_target_view_ptr = NULL;
-
     DXGI_SWAP_CHAIN_DESC swap_chain_descr = { 0 };
     swap_chain_descr.BufferDesc.RefreshRate.Numerator = 0;
     swap_chain_descr.BufferDesc.RefreshRate.Denominator = 1;
@@ -66,9 +66,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     swap_chain_descr.SampleDesc.Count = 1;
     swap_chain_descr.SampleDesc.Quality = 0;
     swap_chain_descr.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    swap_chain_descr.BufferCount = 1;
+    swap_chain_descr.BufferCount = 2;
     swap_chain_descr.OutputWindow = hwnd;
     swap_chain_descr.Windowed = true;
+    swap_chain_descr.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 
     D3D_FEATURE_LEVEL feature_level;
     UINT flags = D3D11_CREATE_DEVICE_SINGLETHREADED;
@@ -256,6 +257,50 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg)
     {
+    case WM_SIZE:
+        if (swap_chain_ptr)
+        {
+            FLOAT width = LOWORD(lParam);
+            FLOAT height = HIWORD(lParam);
+
+            device_context_ptr->OMSetRenderTargets(0, 0, 0);
+
+            // Release all outstanding references to the swap chain's buffers.
+            render_target_view_ptr->Release();
+
+            device_context_ptr->Flush();
+
+            HRESULT hr;
+            // Preserve the existing buffer count and format.
+            // Automatically choose the width and height to match the client rect for HWNDs.
+            hr = swap_chain_ptr->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
+            assert(SUCCEEDED(hr));
+
+            // Get buffer and create a render-target-view.
+            ID3D11Texture2D* pBuffer;
+            hr = swap_chain_ptr->GetBuffer(0, __uuidof(ID3D11Texture2D),
+                (void**)&pBuffer);
+            assert(SUCCEEDED(hr));
+
+            hr = device_ptr->CreateRenderTargetView(pBuffer, NULL,
+                &render_target_view_ptr);
+            assert(SUCCEEDED(hr));
+            pBuffer->Release();
+
+            device_context_ptr->OMSetRenderTargets(1, &render_target_view_ptr, NULL);
+
+            // Set up the viewport.
+            D3D11_VIEWPORT vp;
+            vp.Width = width;
+            vp.Height = height;
+            vp.MinDepth = 0.0f;
+            vp.MaxDepth = 1.0f;
+            vp.TopLeftX = 0;
+            vp.TopLeftY = 0;
+            device_context_ptr->RSSetViewports(1, &vp);
+        }
+        return 1;
+
     case WM_DESTROY:
         PostQuitMessage(0);
         return 0;
