@@ -292,6 +292,20 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         assert(SUCCEEDED(hr_annotation));
     }
 
+    /**** Rasteriser state - set viewport area *****/
+    RECT winRect;
+    GetClientRect(hwnd, &winRect);
+    float width = winRect.right - winRect.left;
+    float height = winRect.bottom - winRect.top;
+    D3D11_VIEWPORT viewport = { 0.0f, 0.0f, (FLOAT)(width), (FLOAT)(height), 0.0f, 1.0f }; device_context_ptr->RSSetViewports(1, &viewport);
+
+    pAnnotation->BeginEvent(L"Setting up projection");
+    // Setup projection
+    float near_z = 0.01f, far_z = 10.0f;
+    Projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, width / (FLOAT)height, near_z, far_z);
+
+    pAnnotation->EndEvent();
+
     // Run the message loop.
 
     MSG msg = {};
@@ -312,13 +326,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             float background_colour[4] = { 0x64 / 255.0f, 0x95 / 255.0f, 0xED / 255.0f, 1.0f };
             device_context_ptr->ClearRenderTargetView(render_target_view_ptr, background_colour);
 
-            /**** Rasteriser state - set viewport area *****/
-            RECT winRect;
-            GetClientRect(hwnd, &winRect);
-            float width = winRect.right - winRect.left;
-            float height = winRect.bottom - winRect.top;
-            D3D11_VIEWPORT viewport = { 0.0f, 0.0f, (FLOAT)(width), (FLOAT)(height), 0.0f, 1.0f }; device_context_ptr->RSSetViewports(1, &viewport);
-
             /**** Output Merger *****/
             device_context_ptr->OMSetRenderTargets(1, &render_target_view_ptr, NULL);
 
@@ -327,13 +334,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             device_context_ptr->IASetInputLayout(input_layout_ptr);
             device_context_ptr->IASetVertexBuffers(0, 1, &vertex_buffer_ptr, &vertex_stride, &vertex_offset);
             device_context_ptr->IASetIndexBuffer(index_buffer_ptr, DXGI_FORMAT_R16_UINT, 0);
-
-            pAnnotation->EndEvent();
-
-            pAnnotation->BeginEvent(L"Setting up projection");
-            // Setup projection
-            float near_z = 0.01f, far_z = 10.0f;
-            Projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, width / (FLOAT)height, near_z, far_z);
 
             pAnnotation->EndEvent();
 
