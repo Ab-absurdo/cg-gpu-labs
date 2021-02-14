@@ -5,6 +5,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <d3d11.h>       // D3D interface
+#include "d3d11_1.h"
 #include <dxgi.h>        // DirectX driver interface
 #include <d3dcompiler.h> // shader compiler
 #include <directxmath.h>
@@ -12,10 +13,14 @@
 
 #include <assert.h>
 
+#include "../renderdoc_app.h"
+#include <string>
+
 #pragma comment( lib, "user32" )          // link against the win32 library
 #pragma comment( lib, "d3d11.lib" )       // direct3D library
 #pragma comment( lib, "dxgi.lib" )        // directx graphics interface
 #pragma comment( lib, "d3dcompiler.lib" ) // shader compiler
+#pragma comment( lib, "dxguid.lib") 
 
 using namespace DirectX;
 
@@ -281,6 +286,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         assert(SUCCEEDED(hr));
     }
 
+    ID3DUserDefinedAnnotation* pAnnotation = nullptr;
+    {
+        HRESULT hr_annotation = device_context_ptr->QueryInterface(__uuidof(pAnnotation), reinterpret_cast<void**>(&pAnnotation));
+        assert(SUCCEEDED(hr_annotation));
+    }
+
     // Run the message loop.
 
     MSG msg = {};
@@ -294,6 +305,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         if (msg.message == WM_QUIT) { break; }
 
         { /*** RENDER A FRAME ***/
+
+            pAnnotation->BeginEvent(L"Rendering start");
+
           /* clear the back buffer to cornflower blue for the new frame */
             float background_colour[4] = { 0x64 / 255.0f, 0x95 / 255.0f, 0xED / 255.0f, 1.0f };
             device_context_ptr->ClearRenderTargetView(render_target_view_ptr, background_colour);
@@ -314,6 +328,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             device_context_ptr->IASetVertexBuffers(0, 1, &vertex_buffer_ptr, &vertex_stride, &vertex_offset);
             device_context_ptr->IASetIndexBuffer(index_buffer_ptr, DXGI_FORMAT_R16_UINT, 0);
 
+            pAnnotation->EndEvent();
+
             // Setup projection
             float near_z = 0.01f, far_z = 10.0f;
             Projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, width / (FLOAT)height, near_z, far_z);
@@ -333,8 +349,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             device_context_ptr->VSSetConstantBuffers(0, 1, &constant_buffer_ptr);
             device_context_ptr->PSSetShader(pixel_shader_ptr, NULL, 0);
 
+            pAnnotation->BeginEvent(L"Draw");
+
             /*** draw the vertex buffer with the shaders ****/
             device_context_ptr->DrawIndexed(indices_number, 0, 0);
+
+            pAnnotation->EndEvent();
 
             /**** swap the back and front buffers (show the frame we just drew) ****/
             swap_chain_ptr->Present(1, 0);
