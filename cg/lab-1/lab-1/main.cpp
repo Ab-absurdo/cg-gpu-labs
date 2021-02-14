@@ -330,9 +330,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
             pAnnotation->EndEvent();
 
+            pAnnotation->BeginEvent(L"Setting up projection");
             // Setup projection
             float near_z = 0.01f, far_z = 10.0f;
             Projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, width / (FLOAT)height, near_z, far_z);
+
+            pAnnotation->EndEvent();
 
             //
             // Update variables
