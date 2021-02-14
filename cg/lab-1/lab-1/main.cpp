@@ -7,6 +7,8 @@
 #include <d3d11.h>       // D3D interface
 #include <dxgi.h>        // DirectX driver interface
 #include <d3dcompiler.h> // shader compiler
+#include <directxmath.h>
+#include <directxcolors.h>
 
 #include <assert.h>
 
@@ -14,6 +16,22 @@
 #pragma comment( lib, "d3d11.lib" )       // direct3D library
 #pragma comment( lib, "dxgi.lib" )        // directx graphics interface
 #pragma comment( lib, "d3dcompiler.lib" ) // shader compiler
+
+using namespace DirectX;
+
+struct SimpleVertex
+{
+    XMFLOAT3 _Pos;
+    XMFLOAT4 _Col;
+};
+
+struct ConstantBuffer
+{
+    XMMATRIX _World;
+    XMMATRIX _View;
+    XMMATRIX _Projection;
+    XMMATRIX _Translation;
+};
 
 ID3D11Device* device_ptr = NULL;
 ID3D11DeviceContext* device_context_ptr = NULL;
@@ -40,7 +58,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     HWND hwnd = CreateWindowEx(
         0,                              // Optional window styles.
         CLASS_NAME,                     // Window class
-        L"Learn to Program Windows",    // Window text
+        L"Computer Graphics: lab1",    // Window text
         WS_OVERLAPPEDWINDOW,            // Window style
 
         // Size and position
@@ -169,8 +187,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     ID3D11InputLayout* input_layout_ptr = NULL;
     D3D11_INPUT_ELEMENT_DESC inputElementDesc[] = {
       { "POS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-      /*
       { "COL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+      /*
       { "NOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
       { "TEX", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
       */
@@ -183,27 +201,83 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         &input_layout_ptr);
     assert(SUCCEEDED(hr));
 
-    float vertex_data_array[] = {
-       0.0f,  0.5f,  0.0f, // point at top
-       0.5f, -0.5f,  0.0f, // point at bottom-right
-      -0.5f, -0.5f,  0.0f, // point at bottom-left
+    SimpleVertex vertices[] =
+    {
+        {XMFLOAT3(0.0f, 0.0f, 0.0f), (XMFLOAT4)Colors::Red},
+        {XMFLOAT3(0.0f, 0.0f, 1.0f), (XMFLOAT4)Colors::Green},
+        {XMFLOAT3(1.0f, 0.0f, 0.0f), (XMFLOAT4)Colors::Blue},
+        {XMFLOAT3(0.5f, 0.5f, 0.5f), (XMFLOAT4)Colors::White},
     };
-    UINT vertex_stride = 3 * sizeof(float);
+
+    WORD indices[] =
+    {
+        0, 1, 3,
+        1, 2, 3,
+        2, 0, 3,
+        2, 1, 0
+    };
+
+    UINT vertices_number = sizeof(vertices) / sizeof(vertices[0]);
+    UINT indices_number = sizeof(indices) / sizeof(indices[0]);
+    UINT vertex_stride = sizeof(SimpleVertex);
     UINT vertex_offset = 0;
-    UINT vertex_count = 3;
+
+    // Initialize the world matrix
+    XMMATRIX World = XMMatrixRotationY(XM_PI * -0.3);
+    World *= XMMatrixRotationX(XM_PI * -0.1);
+
+    // Initialize the view matrix
+    XMVECTOR Eye = XMVectorSet(0.0f, 1.0f, -2.0f, 0.0f);
+    XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+    XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+    XMMATRIX View = XMMatrixLookAtLH(Eye, At, Up);
+
+    XMMATRIX Projection = XMMatrixIdentity();
+    XMMATRIX Translation = XMMatrixIdentity();
+
 
     ID3D11Buffer* vertex_buffer_ptr = NULL;
     { /*** load mesh data into vertex buffer **/
         D3D11_BUFFER_DESC vertex_buff_descr = {};
-        vertex_buff_descr.ByteWidth = sizeof(vertex_data_array);
+        vertex_buff_descr.ByteWidth = sizeof(vertices);
         vertex_buff_descr.Usage = D3D11_USAGE_DEFAULT;
         vertex_buff_descr.BindFlags = D3D11_BIND_VERTEX_BUFFER;
         D3D11_SUBRESOURCE_DATA sr_data = { 0 };
-        sr_data.pSysMem = vertex_data_array;
+        sr_data.pSysMem = vertices;
         HRESULT hr = device_ptr->CreateBuffer(
             &vertex_buff_descr,
             &sr_data,
             &vertex_buffer_ptr);
+        assert(SUCCEEDED(hr));
+    }
+    ID3D11Buffer* index_buffer_ptr = NULL;
+    {
+        D3D11_BUFFER_DESC index_buff_descr = {};
+        index_buff_descr.ByteWidth = sizeof(indices);
+        index_buff_descr.Usage = D3D11_USAGE_DEFAULT;
+        index_buff_descr.BindFlags = D3D11_BIND_INDEX_BUFFER;
+        index_buff_descr.CPUAccessFlags = 0;
+        D3D11_SUBRESOURCE_DATA sr_data = { 0 };
+        sr_data.pSysMem = indices;
+        HRESULT hr = device_ptr->CreateBuffer(
+            &index_buff_descr,
+            &sr_data,
+            &index_buffer_ptr);
+        assert(SUCCEEDED(hr));
+    }
+
+    // Create the constant buffer
+    ID3D11Buffer* constant_buffer_ptr = NULL;
+    {
+        D3D11_BUFFER_DESC constant_buff_descr = {};
+        constant_buff_descr.ByteWidth = sizeof(ConstantBuffer);;
+        constant_buff_descr.Usage = D3D11_USAGE_DEFAULT;
+        constant_buff_descr.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+        constant_buff_descr.CPUAccessFlags = 0;
+        HRESULT hr = device_ptr->CreateBuffer(
+            &constant_buff_descr,
+            nullptr,
+            &constant_buffer_ptr);
         assert(SUCCEEDED(hr));
     }
 
@@ -227,8 +301,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             /**** Rasteriser state - set viewport area *****/
             RECT winRect;
             GetClientRect(hwnd, &winRect);
-            D3D11_VIEWPORT viewport = { 0.0f, 0.0f, (FLOAT)(winRect.right - winRect.left), (FLOAT)(winRect.bottom - winRect.top), 0.0f, 1.0f };
-            device_context_ptr->RSSetViewports(1, &viewport);
+            float width = winRect.right - winRect.left;
+            float height = winRect.bottom - winRect.top;
+            D3D11_VIEWPORT viewport = { 0.0f, 0.0f, (FLOAT)(width), (FLOAT)(height), 0.0f, 1.0f }; device_context_ptr->RSSetViewports(1, &viewport);
 
             /**** Output Merger *****/
             device_context_ptr->OMSetRenderTargets(1, &render_target_view_ptr, NULL);
@@ -237,13 +312,29 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             device_context_ptr->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             device_context_ptr->IASetInputLayout(input_layout_ptr);
             device_context_ptr->IASetVertexBuffers(0, 1, &vertex_buffer_ptr, &vertex_stride, &vertex_offset);
+            device_context_ptr->IASetIndexBuffer(index_buffer_ptr, DXGI_FORMAT_R16_UINT, 0);
+
+            // Setup projection
+            float near_z = 0.01f, far_z = 10.0f;
+            Projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, width / (FLOAT)height, near_z, far_z);
+
+            //
+            // Update variables
+            //
+            ConstantBuffer cb;
+            cb._World = XMMatrixTranspose(World);
+            cb._View = XMMatrixTranspose(View);
+            cb._Projection = XMMatrixTranspose(Projection);
+            cb._Translation = XMMatrixTranspose(Translation);
+            device_context_ptr->UpdateSubresource(constant_buffer_ptr, 0, nullptr, &cb, 0, 0);
 
             /*** set vertex shader to use and pixel shader to use, and constant buffers for each ***/
             device_context_ptr->VSSetShader(vertex_shader_ptr, NULL, 0);
+            device_context_ptr->VSSetConstantBuffers(0, 1, &constant_buffer_ptr);
             device_context_ptr->PSSetShader(pixel_shader_ptr, NULL, 0);
 
             /*** draw the vertex buffer with the shaders ****/
-            device_context_ptr->Draw(vertex_count, 0);
+            device_context_ptr->DrawIndexed(indices_number, 0, 0);
 
             /**** swap the back and front buffers (show the frame we just drew) ****/
             swap_chain_ptr->Present(1, 0);
