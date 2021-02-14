@@ -388,14 +388,20 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             assert(SUCCEEDED(hr));
 
             // Get buffer and create a render-target-view.
+            std::string textureName = "Texture";
+
             ID3D11Texture2D* pBuffer;
+
             hr = swap_chain_ptr->GetBuffer(0, __uuidof(ID3D11Texture2D),
                 (void**)&pBuffer);
             assert(SUCCEEDED(hr));
 
+            pBuffer->SetPrivateData(WKPDID_D3DDebugObjectName, textureName.size(), textureName.c_str());
+
             hr = device_ptr->CreateRenderTargetView(pBuffer, NULL,
                 &render_target_view_ptr);
             assert(SUCCEEDED(hr));
+
             pBuffer->Release();
 
             device_context_ptr->OMSetRenderTargets(1, &render_target_view_ptr, NULL);
