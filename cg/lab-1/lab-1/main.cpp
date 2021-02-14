@@ -364,6 +364,21 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         } // end of frame
     } // end of main loop
 
+    device_context_ptr->ClearState();
+
+    constant_buffer_ptr->Release();
+    vertex_buffer_ptr->Release();
+    index_buffer_ptr->Release();
+    input_layout_ptr->Release();
+    vertex_shader_ptr->Release();
+    pixel_shader_ptr->Release();
+    render_target_view_ptr->Release();
+    swap_chain_ptr->Release();
+    device_context_ptr->Release();
+    device_ptr->Release();
+
+    pAnnotation->Release();
+
     return 0;
 }
 
