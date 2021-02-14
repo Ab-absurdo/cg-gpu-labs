@@ -295,8 +295,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     /**** Rasteriser state - set viewport area *****/
     RECT winRect;
     GetClientRect(hwnd, &winRect);
-    float width = winRect.right - winRect.left;
-    float height = winRect.bottom - winRect.top;
+    float width = (float)(winRect.right - winRect.left);
+    float height = (float)(winRect.bottom - winRect.top);
     D3D11_VIEWPORT viewport = { 0.0f, 0.0f, (FLOAT)(width), (FLOAT)(height), 0.0f, 1.0f }; device_context_ptr->RSSetViewports(1, &viewport);
 
     pAnnotation->BeginEvent(L"Setting up projection");
