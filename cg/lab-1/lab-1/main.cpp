@@ -128,7 +128,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
     flags = D3DCOMPILE_ENABLE_STRICTNESS;
 #if defined( DEBUG ) || defined( _DEBUG )
-    flags |= D3DCOMPILE_DEBUG; // add more debug output
+    flags |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION; // add more debug output
 #endif
     ID3DBlob* vs_blob_ptr = NULL, * ps_blob_ptr = NULL, * error_blob = NULL;
 
