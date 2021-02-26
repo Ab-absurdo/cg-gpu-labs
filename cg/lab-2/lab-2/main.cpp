@@ -11,10 +11,13 @@
 #include <directxmath.h>
 #include <directxcolors.h>
 
+#include "../renderdoc_app.h"
+
 #include <assert.h>
 
-#include "../renderdoc_app.h"
 #include <string>
+
+#define DEBUG_LAYER
 
 #pragma comment( lib, "user32" )          // link against the win32 library
 #pragma comment( lib, "d3d11.lib" )       // direct3D library
@@ -63,7 +66,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     HWND hwnd = CreateWindowEx(
         0,                              // Optional window styles.
         CLASS_NAME,                     // Window class
-        L"Computer Graphics: lab2",    // Window text
+        L"Computer Graphics: lab2",     // Window text
         WS_OVERLAPPEDWINDOW,            // Window style
 
         // Size and position
@@ -96,7 +99,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
     D3D_FEATURE_LEVEL feature_level;
     UINT flags = D3D11_CREATE_DEVICE_SINGLETHREADED;
-#if defined( DEBUG ) || defined( _DEBUG )
+#if defined( DEBUG_LAYER )
     flags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
     HRESULT hr = D3D11CreateDeviceAndSwapChain(
@@ -134,7 +137,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
     // COMPILE VERTEX SHADER
     hr = D3DCompileFromFile(
-        L"shaders.hlsl",
+        L"../../lab-2/shaders.hlsl",
         nullptr,
         D3D_COMPILE_STANDARD_FILE_INCLUDE,
         "vs_main",
@@ -151,10 +154,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         if (vs_blob_ptr) { vs_blob_ptr->Release(); }
         assert(false);
     }
-
     // COMPILE PIXEL SHADER
     hr = D3DCompileFromFile(
-        L"shaders.hlsl",
+        L"../../lab-2/shaders.hlsl",
         nullptr,
         D3D_COMPILE_STANDARD_FILE_INCLUDE,
         "ps_main",
@@ -242,7 +244,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 
     ID3D11Buffer* vertex_buffer_ptr = NULL;
-    { /*** load mesh data into vertex buffer **/
+    {   /*** load mesh data into vertex buffer **/
         D3D11_BUFFER_DESC vertex_buff_descr = {};
         vertex_buff_descr.ByteWidth = sizeof(vertices);
         vertex_buff_descr.Usage = D3D11_USAGE_DEFAULT;
@@ -292,20 +294,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         assert(SUCCEEDED(hr_annotation));
     }
 
-    /**** Rasteriser state - set viewport area *****/
-    RECT winRect;
-    GetClientRect(hwnd, &winRect);
-    float width = (float)(winRect.right - winRect.left);
-    float height = (float)(winRect.bottom - winRect.top);
-    D3D11_VIEWPORT viewport = { 0.0f, 0.0f, (FLOAT)(width), (FLOAT)(height), 0.0f, 1.0f }; device_context_ptr->RSSetViewports(1, &viewport);
-
-    pAnnotation->BeginEvent(L"Setting up projection");
-    // Setup projection
-    float near_z = 0.01f, far_z = 10.0f;
-    Projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, width / (FLOAT)height, near_z, far_z);
-
-    pAnnotation->EndEvent();
-
     // Run the message loop.
 
     MSG msg = {};
@@ -318,13 +306,20 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         }
         if (msg.message == WM_QUIT) { break; }
 
-        { /*** RENDER A FRAME ***/
+        {   /*** RENDER A FRAME ***/
 
             pAnnotation->BeginEvent(L"Rendering start");
 
-          /* clear the back buffer to cornflower blue for the new frame */
+            /* clear the back buffer to cornflower blue for the new frame */
             float background_colour[4] = { 0x64 / 255.0f, 0x95 / 255.0f, 0xED / 255.0f, 1.0f };
             device_context_ptr->ClearRenderTargetView(render_target_view_ptr, background_colour);
+
+            /**** Rasteriser state - set viewport area *****/
+            RECT winRect;
+            GetClientRect(hwnd, &winRect);
+            LONG width = winRect.right - winRect.left;
+            LONG height = winRect.bottom - winRect.top;
+            D3D11_VIEWPORT viewport = { 0.0f, 0.0f, (FLOAT)(width), (FLOAT)(height), 0.0f, 1.0f }; device_context_ptr->RSSetViewports(1, &viewport);
 
             /**** Output Merger *****/
             device_context_ptr->OMSetRenderTargets(1, &render_target_view_ptr, NULL);
@@ -335,6 +330,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             device_context_ptr->IASetVertexBuffers(0, 1, &vertex_buffer_ptr, &vertex_stride, &vertex_offset);
             device_context_ptr->IASetIndexBuffer(index_buffer_ptr, DXGI_FORMAT_R16_UINT, 0);
 
+            pAnnotation->EndEvent();
+
+            pAnnotation->BeginEvent(L"Setting up projection");
+            // Setup projection	
+            float near_z = 0.01f, far_z = 10.0f;
+            Projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, width / (FLOAT)height, near_z, far_z);
+            
             pAnnotation->EndEvent();
 
             //
@@ -414,7 +416,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 (void**)&pBuffer);
             assert(SUCCEEDED(hr));
 
-            pBuffer->SetPrivateData(WKPDID_D3DDebugObjectName, textureName.size(), textureName.c_str());
+            pBuffer->SetPrivateData(WKPDID_D3DDebugObjectName, (UINT)textureName.size(), textureName.c_str());
 
             hr = device_ptr->CreateRenderTargetView(pBuffer, NULL,
                 &render_target_view_ptr);
