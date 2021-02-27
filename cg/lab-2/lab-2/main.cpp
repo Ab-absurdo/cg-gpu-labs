@@ -27,6 +27,14 @@
 
 using namespace DirectX;
 
+enum Keys
+{
+    W_KEY = 87,
+    A_KEY = 65,
+    S_KEY = 83,
+    D_KEY = 68
+};
+
 struct SimpleVertex
 {
     XMFLOAT3 _Pos;
@@ -41,10 +49,60 @@ struct ConstantBuffer
     XMMATRIX _Translation;
 };
 
+class Camera
+{
+public:
+    Camera()
+    {
+        _pos = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+        _dir = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+        _up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+    }
+
+    Camera(XMVECTOR pos, XMVECTOR dir) : _pos(pos)
+    {
+        _dir = XMVector4Normalize(dir);
+        _up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+    }
+
+    XMMATRIX getViewMatrix()
+    {
+        XMVECTOR at = XMVectorAdd(_pos, _dir);
+        return XMMatrixLookAtLH(_pos, at, _up);
+    }
+
+    void move(float dx = 0.0f, float dy = 0.0f, float dz = 0.0f)
+    {
+        _pos = XMVectorSet(XMVectorGetX(_pos) + dx, XMVectorGetY(_pos) + dy, XMVectorGetZ(_pos) + dz, 0.0f);
+    }
+
+    void moveNormal(float dn)
+    {
+        _pos = XMVectorAdd(_pos, XMVectorScale(_dir, dn));
+    }
+
+    void moveTangent(float dt)
+    {
+        XMVECTOR tangent = XMVector3Cross(_dir, _up);
+        _pos = XMVectorAdd(_pos, XMVectorScale(tangent, dt));
+    }
+
+private:
+    XMVECTOR _pos, _dir, _up;
+
+};
+
 ID3D11Device* device_ptr = NULL;
 ID3D11DeviceContext* device_context_ptr = NULL;
 IDXGISwapChain* swap_chain_ptr = NULL;
 ID3D11RenderTargetView* render_target_view_ptr = NULL;
+
+XMMATRIX World = XMMatrixIdentity();
+XMMATRIX View = XMMatrixIdentity();
+XMMATRIX Projection = XMMatrixIdentity();
+XMMATRIX Translation = XMMatrixIdentity();
+
+Camera camera;
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -118,14 +176,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     assert(S_OK == hr && swap_chain_ptr && device_ptr && device_context_ptr);
 
     ID3D11Texture2D* framebuffer;
-    hr = swap_chain_ptr->GetBuffer(
-        0,
-        __uuidof(ID3D11Texture2D),
-        (void**)&framebuffer);
+    hr = swap_chain_ptr->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&framebuffer);
     assert(SUCCEEDED(hr));
 
-    hr = device_ptr->CreateRenderTargetView(
-        framebuffer, 0, &render_target_view_ptr);
+    hr = device_ptr->CreateRenderTargetView(framebuffer, 0, &render_target_view_ptr);
     assert(SUCCEEDED(hr));
     framebuffer->Release();
 
@@ -230,18 +284,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     UINT vertex_offset = 0;
 
     // Initialize the world matrix
-    XMMATRIX World = XMMatrixRotationY(XM_PI * -0.3);
+    World = XMMatrixRotationY(XM_PI * -0.3);
     World *= XMMatrixRotationX(XM_PI * -0.1);
 
-    // Initialize the view matrix
-    XMVECTOR Eye = XMVectorSet(0.0f, 1.0f, -2.0f, 0.0f);
-    XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-    XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-    XMMATRIX View = XMMatrixLookAtLH(Eye, At, Up);
-
-    XMMATRIX Projection = XMMatrixIdentity();
-    XMMATRIX Translation = XMMatrixIdentity();
-
+    // Initialize the camera
+    XMVECTOR pos = XMVectorSet(0.0f, 1.0f, -2.0f, 0.0f);
+    XMVECTOR dir = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+    camera = Camera(pos, dir);
 
     ID3D11Buffer* vertex_buffer_ptr = NULL;
     {   /*** load mesh data into vertex buffer **/
@@ -332,12 +381,19 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
             pAnnotation->EndEvent();
 
+            pAnnotation->BeginEvent(L"Setting up camera view");
+            View = camera.getViewMatrix();
+
+            pAnnotation->EndEvent();
+
             pAnnotation->BeginEvent(L"Setting up projection");
             // Setup projection	
             float near_z = 0.01f, far_z = 10.0f;
             Projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, width / (FLOAT)height, near_z, far_z);
             
             pAnnotation->EndEvent();
+
+
 
             //
             // Update variables
@@ -384,10 +440,40 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     return 0;
 }
 
+LRESULT keyhandler(WPARAM wParam, LPARAM lParam)
+{
+    // LPARAM mask_0_15 = 65535, mask_30 = 1 << 30;
+    // The number of times the keystroke is autorepeated as a result of the user holding down the key.
+    // LPARAM b0_15 = lParam & mask_0_15; 
+    // The value is 1 if the key is down before the message is sent, or it is zero if the key is up.
+    // LPARAM b30 = (lParam & mask_30) != 0;
+    switch (wParam)
+    {
+    case W_KEY:
+        camera.moveNormal(0.1f);
+        break;
+    case S_KEY:
+        camera.moveNormal(-0.1f);
+        break;
+    case A_KEY:
+        camera.moveTangent(0.1f);
+        break;
+    case D_KEY:
+        camera.moveTangent(-0.1f);
+        break;
+    default:
+        break;
+    }
+    return 0;
+}
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg)
     {
+    case WM_KEYDOWN:
+        return keyhandler(wParam, lParam);
+
     case WM_SIZE:
         if (swap_chain_ptr)
         {
