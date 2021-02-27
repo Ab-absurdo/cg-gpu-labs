@@ -67,8 +67,8 @@ public:
 
     XMMATRIX getViewMatrix()
     {
-        XMVECTOR at = XMVectorAdd(_pos, _dir);
-        return XMMatrixLookAtLH(_pos, at, _up);
+        XMVECTOR focus = XMVectorAdd(_pos, _dir);
+        return XMMatrixLookAtLH(_pos, focus, _up);
     }
 
     void move(float dx = 0.0f, float dy = 0.0f, float dz = 0.0f)
@@ -83,13 +83,29 @@ public:
 
     void moveTangent(float dt)
     {
-        XMVECTOR tangent = XMVector3Cross(_dir, _up);
+        XMVECTOR tangent = XMVector4Normalize(XMVector3Cross(_dir, _up));
         _pos = XMVectorAdd(_pos, XMVectorScale(tangent, dt));
+    }
+
+    void rotateHorisontal(float angle)
+    {
+        XMVECTOR rotation_quaternion = XMQuaternionRotationAxis(_up, angle);
+        _dir = XMVector3Rotate(_dir, rotation_quaternion);
+    }
+
+    void rotateVertical(float angle)
+    {
+        XMVECTOR tangent = -XMVector4Normalize(XMVector3Cross(_dir, _up));
+        angle = min(angle, XM_PIDIV2 - _vertical_angle);
+        angle = max(angle, -XM_PIDIV2 - _vertical_angle);
+        _vertical_angle += angle;
+        XMVECTOR rotation_quaternion = XMQuaternionRotationAxis(tangent, angle);
+        _dir = XMVector3Rotate(_dir, rotation_quaternion);
     }
 
 private:
     XMVECTOR _pos, _dir, _up;
-
+    float _vertical_angle = 0.0f;
 };
 
 ID3D11Device* device_ptr = NULL;
@@ -469,10 +485,37 @@ LRESULT keyhandler(WPARAM wParam, LPARAM lParam)
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+    static POINT cursor;
+    static float mouse_sence = 5e-3f;
     switch (uMsg)
     {
     case WM_KEYDOWN:
         return keyhandler(wParam, lParam);
+
+    case WM_LBUTTONDOWN:
+        ShowCursor(false);
+        GetCursorPos(&cursor);
+        SetCursorPos(cursor.x, cursor.y);
+        return 0;
+
+    case WM_MOUSEMOVE:
+        if(wParam == MK_LBUTTON)
+        {
+            POINT current_pos;
+            int dx, dy;
+            GetCursorPos(&current_pos);
+            dx = current_pos.x - cursor.x;
+            dy = current_pos.y - cursor.y;
+            SetCursorPos(cursor.x, cursor.y);
+            camera.rotateHorisontal(dx * mouse_sence);
+            camera.rotateVertical(dy * mouse_sence);
+        }
+        return 0;
+
+    case WM_LBUTTONUP:
+        SetCursorPos(cursor.x, cursor.y);
+        ShowCursor(true);
+        return 0;
 
     case WM_SIZE:
         if (swap_chain_ptr)
