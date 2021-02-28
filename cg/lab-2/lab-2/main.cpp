@@ -487,15 +487,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     static POINT cursor;
     static float mouse_sence = 5e-3f;
+    static bool cursor_hidden = false;
     switch (uMsg)
     {
     case WM_KEYDOWN:
         return keyhandler(wParam, lParam);
 
     case WM_LBUTTONDOWN:
-        ShowCursor(false);
+        while (ShowCursor(false) > 0);
+        cursor_hidden = true;
         GetCursorPos(&cursor);
-        SetCursorPos(cursor.x, cursor.y);
         return 0;
 
     case WM_MOUSEMOVE:
@@ -510,11 +511,17 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             camera.rotateHorisontal(dx * mouse_sence);
             camera.rotateVertical(dy * mouse_sence);
         }
+        else if(cursor_hidden)
+        {
+            while (ShowCursor(true) < 0);
+            cursor_hidden = false;
+        }
         return 0;
 
     case WM_LBUTTONUP:
         SetCursorPos(cursor.x, cursor.y);
-        ShowCursor(true);
+        while (ShowCursor(true) < 0);
+        cursor_hidden = false;
         return 0;
 
     case WM_SIZE:
