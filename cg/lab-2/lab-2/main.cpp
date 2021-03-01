@@ -4,6 +4,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <windowsx.h>
 #include <d3d11.h>       // D3D interface
 #include "d3d11_1.h"
 #include <dxgi.h>        // DirectX driver interface
@@ -32,13 +33,24 @@ enum Keys
     W_KEY = 87,
     A_KEY = 65,
     S_KEY = 83,
-    D_KEY = 68
+    D_KEY = 68,
+    _1_KEY = 49,
+    _2_KEY = 50,
+    _3_KEY = 51,
+};
+
+struct WorldBorders
+{
+    float x_min, x_max;
+    float y_min, y_max;
+    float z_min, z_max;
 };
 
 struct SimpleVertex
 {
     XMFLOAT3 _Pos;
     XMFLOAT4 _Col;
+    XMFLOAT3 _Nor;
 };
 
 struct ConstantBuffer
@@ -46,7 +58,10 @@ struct ConstantBuffer
     XMMATRIX _World;
     XMMATRIX _View;
     XMMATRIX _Projection;
-    XMMATRIX _Translation;
+
+    XMFLOAT4 _LightPos[3];
+    XMFLOAT4 _LightColor[3];
+    float _LightIntensity[12];
 };
 
 class Camera
@@ -83,7 +98,7 @@ public:
 
     void moveTangent(float dt)
     {
-        XMVECTOR tangent = XMVector4Normalize(XMVector3Cross(_dir, _up));
+        XMVECTOR tangent = getTangentVector();
         _pos = XMVectorAdd(_pos, XMVectorScale(tangent, dt));
     }
 
@@ -95,17 +110,58 @@ public:
 
     void rotateVertical(float angle)
     {
-        XMVECTOR tangent = -XMVector4Normalize(XMVector3Cross(_dir, _up));
+        XMVECTOR tangent = getTangentVector();
         angle = min(angle, XM_PIDIV2 - _vertical_angle);
         angle = max(angle, -XM_PIDIV2 - _vertical_angle);
         _vertical_angle += angle;
-        XMVECTOR rotation_quaternion = XMQuaternionRotationAxis(tangent, angle);
+        XMVECTOR rotation_quaternion = XMQuaternionRotationAxis(-tangent, angle);
         _dir = XMVector3Rotate(_dir, rotation_quaternion);
     }
 
+    void positionClip(WorldBorders b)
+    {
+        if (XMVectorGetX(_pos) > b.x_max)
+            _pos = XMVectorSetX(_pos, b.x_max);
+        if (XMVectorGetX(_pos) < b.x_min)
+            _pos = XMVectorSetX(_pos, b.x_min);
+        if (XMVectorGetY(_pos) > b.y_max)
+            _pos = XMVectorSetY(_pos, b.y_max);
+        if (XMVectorGetY(_pos) < b.y_min)
+            _pos = XMVectorSetY(_pos, b.y_min);
+        if (XMVectorGetZ(_pos) > b.z_max)
+            _pos = XMVectorSetZ(_pos, b.z_max);
+        if (XMVectorGetZ(_pos) < b.z_min)
+            _pos = XMVectorSetZ(_pos, b.z_min);
+    }
+
 private:
+    XMVECTOR getTangentVector()
+    {
+        return XMVector4Normalize(XMVector3Cross(_dir, _up));
+    }
+
     XMVECTOR _pos, _dir, _up;
     float _vertical_angle = 0.0f;
+};
+
+class PointLight
+{
+public:
+    PointLight() 
+    { 
+        _pos = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+        _color = (XMFLOAT4)Colors::White;
+    }
+
+    float getIntensity() { return _intensities[_current_index];  }
+    void changeIntensity() { _current_index = (_current_index + 1) % 3; }
+
+    XMFLOAT4 _pos;
+    XMFLOAT4 _color;
+
+private:
+    float _intensities[3] = { 1.0f, 10.0f, 100.0f };
+    size_t _current_index = 0;
 };
 
 ID3D11Device* device_ptr = NULL;
@@ -118,7 +174,10 @@ XMMATRIX View = XMMatrixIdentity();
 XMMATRIX Projection = XMMatrixIdentity();
 XMMATRIX Translation = XMMatrixIdentity();
 
+WorldBorders borders = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 Camera camera;
+PointLight lights[3];
+
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -264,9 +323,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     ID3D11InputLayout* input_layout_ptr = NULL;
     D3D11_INPUT_ELEMENT_DESC inputElementDesc[] = {
       { "POS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-      { "COL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+      { "COL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+      { "NOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0 },
       /*
-      { "NOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
       { "TEX", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
       */
     };
@@ -278,20 +337,27 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         &input_layout_ptr);
     assert(SUCCEEDED(hr));
 
+
+    // setup geometry
+    borders.x_min = -20.0f;
+    borders.x_max = 20.0f;
+    borders.y_min = 0.2f;
+    borders.y_max = 10.0f;
+    borders.z_min = -20.0f;
+    borders.z_max = 20.0f;
     SimpleVertex vertices[] =
+
     {
-        {XMFLOAT3(0.0f, 0.0f, 0.0f), (XMFLOAT4)Colors::Red},
-        {XMFLOAT3(0.0f, 0.0f, 1.0f), (XMFLOAT4)Colors::Green},
-        {XMFLOAT3(1.0f, 0.0f, 0.0f), (XMFLOAT4)Colors::Blue},
-        {XMFLOAT3(0.5f, 0.5f, 0.5f), (XMFLOAT4)Colors::White},
+        {XMFLOAT3(borders.x_min, 0.0f, borders.z_min), (XMFLOAT4)Colors::Black, XMFLOAT3(0.0f, 1.0f, 0.0f)},
+        {XMFLOAT3(borders.x_max, 0.0f, borders.z_min), (XMFLOAT4)Colors::Black, XMFLOAT3(0.0f, 1.0f, 0.0f)},
+        {XMFLOAT3(borders.x_max, 0.0f, borders.z_max), (XMFLOAT4)Colors::Black, XMFLOAT3(0.0f, 1.0f, 0.0f)},
+        {XMFLOAT3(borders.x_min, 0.0f, borders.z_max), (XMFLOAT4)Colors::Black, XMFLOAT3(0.0f, 1.0f, 0.0f)},
     };
 
     WORD indices[] =
     {
-        0, 1, 3,
-        1, 2, 3,
-        2, 0, 3,
-        2, 1, 0
+        3, 1, 0,
+        2, 1, 3,
     };
 
     UINT vertices_number = sizeof(vertices) / sizeof(vertices[0]);
@@ -299,14 +365,20 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     UINT vertex_stride = sizeof(SimpleVertex);
     UINT vertex_offset = 0;
 
-    // Initialize the world matrix
-    World = XMMatrixRotationY(XM_PI * -0.3);
-    World *= XMMatrixRotationX(XM_PI * -0.1);
-
-    // Initialize the camera
+    // setup camera
     XMVECTOR pos = XMVectorSet(0.0f, 1.0f, -2.0f, 0.0f);
     XMVECTOR dir = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
     camera = Camera(pos, dir);
+
+    // setup light sources
+    size_t n = 3;
+    float r = 1.5f, h = 5.0f;
+    for (int i = 0; i < n; i++)
+        lights[i]._pos = XMFLOAT4(r * sin(i *XM_2PI / n), h, r * cos(i * XM_2PI / n), 0.0f);
+    lights[0]._color = (XMFLOAT4)Colors::Red;
+    lights[1]._color = (XMFLOAT4)Colors::Lime;
+    lights[2]._color = (XMFLOAT4)Colors::Blue;
+  
 
     ID3D11Buffer* vertex_buffer_ptr = NULL;
     {   /*** load mesh data into vertex buffer **/
@@ -342,7 +414,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     ID3D11Buffer* constant_buffer_ptr = NULL;
     {
         D3D11_BUFFER_DESC constant_buff_descr = {};
-        constant_buff_descr.ByteWidth = sizeof(ConstantBuffer);;
+        constant_buff_descr.ByteWidth = sizeof(ConstantBuffer);
         constant_buff_descr.Usage = D3D11_USAGE_DEFAULT;
         constant_buff_descr.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
         constant_buff_descr.CPUAccessFlags = 0;
@@ -372,7 +444,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         if (msg.message == WM_QUIT) { break; }
 
         {   /*** RENDER A FRAME ***/
-
+           
             pAnnotation->BeginEvent(L"Rendering start");
 
             /* clear the back buffer to cornflower blue for the new frame */
@@ -404,11 +476,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
             pAnnotation->BeginEvent(L"Setting up projection");
             // Setup projection	
-            float near_z = 0.01f, far_z = 10.0f;
+            float near_z = 0.01f, far_z = 100.0f;
             Projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, width / (FLOAT)height, near_z, far_z);
             
             pAnnotation->EndEvent();
-
 
 
             //
@@ -418,13 +489,19 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             cb._World = XMMatrixTranspose(World);
             cb._View = XMMatrixTranspose(View);
             cb._Projection = XMMatrixTranspose(Projection);
-            cb._Translation = XMMatrixTranspose(Translation);
+            for (int i = 0; i < 3; i++)
+            {
+                cb._LightPos[i] = lights[i]._pos;
+                cb._LightColor[i] = lights[i]._color;
+                cb._LightIntensity[4*i] = lights[i].getIntensity();
+            }
             device_context_ptr->UpdateSubresource(constant_buffer_ptr, 0, nullptr, &cb, 0, 0);
 
             /*** set vertex shader to use and pixel shader to use, and constant buffers for each ***/
             device_context_ptr->VSSetShader(vertex_shader_ptr, NULL, 0);
             device_context_ptr->VSSetConstantBuffers(0, 1, &constant_buffer_ptr);
             device_context_ptr->PSSetShader(pixel_shader_ptr, NULL, 0);
+            device_context_ptr->PSSetConstantBuffers(0, 1, &constant_buffer_ptr);
 
             pAnnotation->BeginEvent(L"Draw");
 
@@ -458,24 +535,42 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 LRESULT keyhandler(WPARAM wParam, LPARAM lParam)
 {
-    // LPARAM mask_0_15 = 65535, mask_30 = 1 << 30;
+    LPARAM mask_0_15 = 65535, mask_30 = 1 << 30;
     // The number of times the keystroke is autorepeated as a result of the user holding down the key.
-    // LPARAM b0_15 = lParam & mask_0_15; 
+    LPARAM b0_15 = lParam & mask_0_15; 
     // The value is 1 if the key is down before the message is sent, or it is zero if the key is up.
-    // LPARAM b30 = (lParam & mask_30) != 0;
+    LPARAM b30 = (lParam & mask_30) != 0;
+    float step = 0.1f;
+    OutputDebugStringA((std::to_string(wParam) + " ").c_str());
     switch (wParam)
     {
     case W_KEY:
-        camera.moveNormal(0.1f);
+        camera.moveNormal(step);
+        camera.positionClip(borders);
         break;
     case S_KEY:
-        camera.moveNormal(-0.1f);
+        camera.moveNormal(-step);
+        camera.positionClip(borders);
         break;
     case A_KEY:
-        camera.moveTangent(0.1f);
+        camera.moveTangent(step);
+        camera.positionClip(borders);
         break;
     case D_KEY:
-        camera.moveTangent(-0.1f);
+        camera.moveTangent(-step);
+        camera.positionClip(borders);
+        break;
+    case _1_KEY:
+        if (!b30)
+            lights[0].changeIntensity();
+        break;
+    case _2_KEY:
+        if (!b30)
+            lights[1].changeIntensity();
+        break;
+    case _3_KEY:
+        if (!b30)
+            lights[2].changeIntensity();
         break;
     default:
         break;
@@ -494,7 +589,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         return keyhandler(wParam, lParam);
 
     case WM_LBUTTONDOWN:
-        while (ShowCursor(false) > 0);
+        while (ShowCursor(false) >= 0);
         cursor_hidden = true;
         GetCursorPos(&cursor);
         return 0;
@@ -513,14 +608,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         }
         else if(cursor_hidden)
         {
-            while (ShowCursor(true) < 0);
+            while (ShowCursor(true) <= 0);
             cursor_hidden = false;
         }
         return 0;
 
     case WM_LBUTTONUP:
         SetCursorPos(cursor.x, cursor.y);
-        while (ShowCursor(true) < 0);
+        while (ShowCursor(true) <= 0);
         cursor_hidden = false;
         return 0;
 
