@@ -12,6 +12,7 @@
 #include <directxmath.h>
 #include <directxcolors.h>
 
+#include "DDSTextureLoader.h"
 #include "../renderdoc_app.h"
 
 #include <assert.h>
@@ -49,8 +50,8 @@ struct WorldBorders
 struct SimpleVertex
 {
     XMFLOAT3 _Pos;
-    XMFLOAT4 _Col;
     XMFLOAT3 _Nor;
+    XMFLOAT2 _Tex;
 };
 
 struct ConstantBuffer
@@ -168,6 +169,8 @@ ID3D11Device* device_ptr = NULL;
 ID3D11DeviceContext* device_context_ptr = NULL;
 IDXGISwapChain* swap_chain_ptr = NULL;
 ID3D11RenderTargetView* render_target_view_ptr = NULL;
+ID3D11ShaderResourceView* texture_rv_ptr = NULL;
+ID3D11SamplerState* sampler_linear_ptr = NULL;
 
 XMMATRIX World = XMMatrixIdentity();
 XMMATRIX View = XMMatrixIdentity();
@@ -323,11 +326,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     ID3D11InputLayout* input_layout_ptr = NULL;
     D3D11_INPUT_ELEMENT_DESC inputElementDesc[] = {
       { "POS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-      { "COL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-      { "NOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-      /*
-      { "TEX", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-      */
+      /*{ "COL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },*/
+      { "NOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+      { "TEX", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0 },
     };
     hr = device_ptr->CreateInputLayout(
         inputElementDesc,
@@ -348,10 +349,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     SimpleVertex vertices[] =
 
     {
-        {XMFLOAT3(borders.x_min, 0.0f, borders.z_min), (XMFLOAT4)Colors::Black, XMFLOAT3(0.0f, 1.0f, 0.0f)},
-        {XMFLOAT3(borders.x_max, 0.0f, borders.z_min), (XMFLOAT4)Colors::Black, XMFLOAT3(0.0f, 1.0f, 0.0f)},
-        {XMFLOAT3(borders.x_max, 0.0f, borders.z_max), (XMFLOAT4)Colors::Black, XMFLOAT3(0.0f, 1.0f, 0.0f)},
-        {XMFLOAT3(borders.x_min, 0.0f, borders.z_max), (XMFLOAT4)Colors::Black, XMFLOAT3(0.0f, 1.0f, 0.0f)},
+        {XMFLOAT3(borders.x_min, 0.0f, borders.z_min), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f)},
+        {XMFLOAT3(borders.x_max, 0.0f, borders.z_min), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(10.0f, 0.0f)},
+        {XMFLOAT3(borders.x_max, 0.0f, borders.z_max), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(10.0f, 10.0f)},
+        {XMFLOAT3(borders.x_min, 0.0f, borders.z_max), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 10.0f)},
     };
 
     WORD indices[] =
@@ -424,6 +425,25 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             &constant_buffer_ptr);
         assert(SUCCEEDED(hr));
     }
+
+
+
+    // Load the Texture
+    hr = CreateDDSTextureFromFile(device_ptr, L"seafloor.dds", nullptr, &texture_rv_ptr);
+    assert(SUCCEEDED(hr));
+
+    // Create the sample state
+    D3D11_SAMPLER_DESC sampDesc;
+    ZeroMemory(&sampDesc, sizeof(sampDesc));
+    sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+    sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+    sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    sampDesc.MinLOD = 0;
+    sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
+    hr = device_ptr->CreateSamplerState(&sampDesc, &sampler_linear_ptr);
+    assert(SUCCEEDED(hr));
 
     ID3DUserDefinedAnnotation* pAnnotation = nullptr;
     {
@@ -502,6 +522,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             device_context_ptr->VSSetConstantBuffers(0, 1, &constant_buffer_ptr);
             device_context_ptr->PSSetShader(pixel_shader_ptr, NULL, 0);
             device_context_ptr->PSSetConstantBuffers(0, 1, &constant_buffer_ptr);
+            device_context_ptr->PSSetShaderResources(0, 1, &texture_rv_ptr);
+            device_context_ptr->PSSetSamplers(0, 1, &sampler_linear_ptr);
 
             pAnnotation->BeginEvent(L"Draw");
 
@@ -541,7 +563,6 @@ LRESULT keyhandler(WPARAM wParam, LPARAM lParam)
     // The value is 1 if the key is down before the message is sent, or it is zero if the key is up.
     LPARAM b30 = (lParam & mask_30) != 0;
     float step = 0.1f;
-    OutputDebugStringA((std::to_string(wParam) + " ").c_str());
     switch (wParam)
     {
     case W_KEY:
