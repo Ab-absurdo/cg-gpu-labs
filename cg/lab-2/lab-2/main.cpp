@@ -62,6 +62,7 @@ struct ConstantBuffer
 
     XMFLOAT4 _LightPos[3];
     XMFLOAT4 _LightColor[3];
+    XMFLOAT4 _LightAttenuation[3];
     float _LightIntensity[12];
 };
 
@@ -159,6 +160,7 @@ public:
 
     XMFLOAT4 _pos;
     XMFLOAT4 _color;
+    float _const_att = 1.0f, _lin_att = 0.1f, _exp_att = 0.01f;
 
 private:
     float _intensities[3] = { 1.0f, 10.0f, 100.0f };
@@ -373,7 +375,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
     // setup light sources
     size_t n = 3;
-    float r = 1.5f, h = 5.0f;
+    float r = 2.0f, h = 5.0f;
     for (int i = 0; i < n; i++)
         lights[i]._pos = XMFLOAT4(r * sin(i *XM_2PI / n), h, r * cos(i * XM_2PI / n), 0.0f);
     lights[0]._color = (XMFLOAT4)Colors::Red;
@@ -429,7 +431,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 
     // Load the Texture
-    hr = CreateDDSTextureFromFile(device_ptr, L"seafloor.dds", nullptr, &texture_rv_ptr);
+    hr = CreateDDSTextureFromFile(device_ptr, L"../../lab-2/seafloor.dds", nullptr, &texture_rv_ptr);
     assert(SUCCEEDED(hr));
 
     // Create the sample state
@@ -513,6 +515,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             {
                 cb._LightPos[i] = lights[i]._pos;
                 cb._LightColor[i] = lights[i]._color;
+                XMFLOAT4 att(lights[i]._const_att, lights[i]._lin_att, lights[i]._exp_att, 0.0f);
+                cb._LightAttenuation[i] = att;
                 cb._LightIntensity[4*i] = lights[i].getIntensity();
             }
             device_context_ptr->UpdateSubresource(constant_buffer_ptr, 0, nullptr, &cb, 0, 0);

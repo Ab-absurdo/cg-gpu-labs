@@ -10,6 +10,7 @@ cbuffer ConstantBuffer : register(b0)
 
     float4 LightPos[3];
     float4 LightColor[3];
+    float4 LightAttenuation[3];
     float LightIntensity[3];
 }
 
@@ -42,11 +43,13 @@ vs_out vs_main(vs_in input) {
 float4 ps_main(vs_out input) : SV_TARGET{
     float4 color = 0;
     float3 light_dir;
-    float deg = 10.0f;
+    float dist, att, deg = 2.0f;
     for (int i = 0; i < 3; i++)
     {
-        light_dir = normalize(LightPos[i].xyz - input.position_world.xyz);
-        color += pow(dot(light_dir, input.normal_world), deg) * LightIntensity[i] * LightColor[i];
+        light_dir = LightPos[i].xyz - input.position_world.xyz;
+        dist = length(light_dir);
+        att = LightAttenuation[i].x + LightAttenuation[i].y * dist + LightAttenuation[i].z * dist * dist;
+        color += pow(dot(light_dir / dist, input.normal_world), deg) / att * LightIntensity[i] * LightColor[i];
     }
     return txDiffuse.Sample(samLinear, input.tex) * color;
 }
