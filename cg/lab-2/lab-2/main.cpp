@@ -377,7 +377,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     size_t n = 3;
     float r = 2.0f, h = 5.0f;
     for (int i = 0; i < n; i++)
-        lights[i]._pos = XMFLOAT4(r * sin(i *XM_2PI / n), h, r * cos(i * XM_2PI / n), 0.0f);
+        lights[i]._pos = XMFLOAT4(r * sinf(i *XM_2PI / n), h, r * cosf(i * XM_2PI / n), 0.0f);
     lights[0]._color = (XMFLOAT4)Colors::Red;
     lights[1]._color = (XMFLOAT4)Colors::Lime;
     lights[2]._color = (XMFLOAT4)Colors::Blue;
@@ -547,6 +547,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     vertex_buffer_ptr->Release();
     index_buffer_ptr->Release();
     input_layout_ptr->Release();
+    texture_rv_ptr->Release();
+    sampler_linear_ptr->Release();
     vertex_shader_ptr->Release();
     pixel_shader_ptr->Release();
     render_target_view_ptr->Release();
