@@ -68,6 +68,8 @@ struct ConstantBuffer
     XMFLOAT4 _LightColor[3];
     XMFLOAT4 _LightAttenuation[3];
     float _LightIntensity[12];
+
+    float _AverageLogLuminance;
 };
 
 class Camera
@@ -239,7 +241,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     DXGI_SWAP_CHAIN_DESC swap_chain_descr = { 0 };
     swap_chain_descr.BufferDesc.RefreshRate.Numerator = 0;
     swap_chain_descr.BufferDesc.RefreshRate.Denominator = 1;
-    swap_chain_descr.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    swap_chain_descr.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     swap_chain_descr.SampleDesc.Count = 1;
     swap_chain_descr.SampleDesc.Quality = 0;
     swap_chain_descr.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
@@ -283,6 +285,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     ID3DBlob* vs_blob_ptr = NULL, * ps_blob_ptr = NULL, * error_blob = NULL;
     ID3DBlob* vs_copy_blob_ptr = NULL, * ps_copy_blob_ptr = NULL, * copy_error_blob = NULL;
     ID3DBlob* ps_log_luminance_blob_ptr = NULL, * log_luminance_error_blob = NULL;
+    ID3DBlob* ps_tone_mapping_blob_ptr = NULL, * tone_mapping_error_blob = NULL;
 
     // COMPILE VERTEX SHADER
     hr = D3DCompileFromFile(
@@ -382,6 +385,26 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         assert(false);
     }
 
+    // COMPILE PIXEL SHADER TONE MAPPING
+    hr = D3DCompileFromFile(
+        L"../../lab-2/shaders.hlsl",
+        nullptr,
+        D3D_COMPILE_STANDARD_FILE_INCLUDE,
+        "ps_tone_mapping_main",
+        "ps_5_0",
+        flags,
+        0,
+        &ps_tone_mapping_blob_ptr,
+        &tone_mapping_error_blob);
+    if (FAILED(hr)) {
+        if (tone_mapping_error_blob) {
+            OutputDebugStringA((char*)tone_mapping_error_blob->GetBufferPointer());
+            tone_mapping_error_blob->Release();
+        }
+        if (ps_tone_mapping_blob_ptr) { ps_tone_mapping_blob_ptr->Release(); }
+        assert(false);
+    }
+
     ID3D11VertexShader* vertex_shader_ptr = NULL;
     ID3D11PixelShader* pixel_shader_ptr = NULL;
 
@@ -423,6 +446,15 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         ps_log_luminance_blob_ptr->GetBufferSize(),
         NULL,
         &pixel_shader_log_luminance_ptr);
+    assert(SUCCEEDED(hr));
+
+    ID3D11PixelShader* pixel_shader_tone_mapping_ptr = NULL;
+
+    hr = device_ptr->CreatePixelShader(
+        ps_tone_mapping_blob_ptr->GetBufferPointer(),
+        ps_tone_mapping_blob_ptr->GetBufferSize(),
+        NULL,
+        &pixel_shader_tone_mapping_ptr);
     assert(SUCCEEDED(hr));
 
     CD3D11_TEXTURE2D_DESC average_log_luminance_texture_desc(DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 1);
@@ -537,10 +569,18 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         assert(SUCCEEDED(hr));
     }
 
-
-
     // Load the Texture
-    hr = CreateDDSTextureFromFile(device_ptr, L"../../lab-2/seafloor.dds", nullptr, &texture_rv_ptr);
+    hr = CreateDDSTextureFromFileEx(device_ptr,
+        nullptr,
+        L"../../lab-2/seafloor.dds",
+        0,
+        D3D11_USAGE_DEFAULT,
+        D3D11_BIND_SHADER_RESOURCE,
+        0,
+        0,
+        true,
+        nullptr,
+        &texture_rv_ptr);
     assert(SUCCEEDED(hr));
 
     // Create the sample state
@@ -746,14 +786,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                 }
             }
 
-            D3D11_MAPPED_SUBRESOURCE average_log_luminance_mapped_subresource;
-            device_context_ptr->CopyResource(average_log_luminance_texture, log_luminance_textures.back().GetRenderTarget());
-            device_context_ptr->Map(average_log_luminance_texture, 0, D3D11_MAP_READ, 0, &average_log_luminance_mapped_subresource);
-            float average_log_luminance = ((float*)average_log_luminance_mapped_subresource.pData)[0];
-            device_context_ptr->Unmap(average_log_luminance_texture, 0);
-
-            OutputDebugStringA((to_string(average_log_luminance) + "\n").c_str());
-
             {
                 device_context_ptr->ClearRenderTargetView(render_target_view_ptr, Colors::Black.f);
 
@@ -767,9 +799,21 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                 device_context_ptr->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
                 device_context_ptr->IASetInputLayout(nullptr);
 
+                D3D11_MAPPED_SUBRESOURCE average_log_luminance_mapped_subresource;
+                device_context_ptr->CopyResource(average_log_luminance_texture, log_luminance_textures.back().GetRenderTarget());
+                device_context_ptr->Map(average_log_luminance_texture, 0, D3D11_MAP_READ, 0, &average_log_luminance_mapped_subresource);
+                float average_log_luminance = ((float*)average_log_luminance_mapped_subresource.pData)[0];
+                device_context_ptr->Unmap(average_log_luminance_texture, 0);
+
+                ConstantBuffer cb;
+                cb._AverageLogLuminance = average_log_luminance;
+
+                device_context_ptr->UpdateSubresource(constant_buffer_ptr, 0, nullptr, &cb, 0, 0);
+
                 /*** set vertex shader to use and pixel shader to use, and constant buffers for each ***/
                 device_context_ptr->VSSetShader(vertex_shader_copy_ptr, NULL, 0);
-                device_context_ptr->PSSetShader(pixel_shader_copy_ptr, NULL, 0);
+                device_context_ptr->PSSetShader(pixel_shader_tone_mapping_ptr, NULL, 0);
+                device_context_ptr->PSSetConstantBuffers(0, 1, &constant_buffer_ptr);
                 device_context_ptr->PSSetShaderResources(0, 1, &render_texture_shader_resource_view);
                 device_context_ptr->PSSetSamplers(0, 1, &sampler_linear_ptr);
 
@@ -795,6 +839,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     pixel_shader_ptr->Release();
     pixel_shader_copy_ptr->Release();
     pixel_shader_log_luminance_ptr->Release();
+    pixel_shader_tone_mapping_ptr->Release();
     render_target_view_ptr->Release();
     swap_chain_ptr->Release();
     device_context_ptr->Release();

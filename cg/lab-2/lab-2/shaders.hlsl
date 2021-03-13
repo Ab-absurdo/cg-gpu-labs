@@ -12,6 +12,8 @@ cbuffer ConstantBuffer : register(b0)
     float4 LightColor[3];
     float4 LightAttenuation[3];
     float LightIntensity[3];
+
+    float AverageLogLuminance;
 }
 
 /* vertex attributes go here to input to the vertex shader */
@@ -69,4 +71,39 @@ float4 ps_log_luminance_main(vs_out input) : SV_TARGET{
     float4 p = txDiffuse.Sample(samLinear, input.tex);
     float L = 0.2126 * p.r + 0.7151 * p.g + 0.0722 * p.b;
     return log(L + 1);
+}
+
+static const float A = 0.1;  // Shoulder Strength
+static const float B = 0.50; // Linear Strength
+static const float C = 0.1;  // Linear Angle
+static const float D = 0.20; // Toe Strength
+static const float E = 0.02; // Toe Numerator
+static const float F = 0.30; // Toe Denominator
+                             // Note: E/F = Toe Angle
+static const float W = 11.2; // Linear White Point Value
+
+float3 Uncharted2Tonemap(float3 x) {
+    return ((x * (A * x + C * B) + D * E) / (x * (A * x + B) + D * F)) - E / F;
+}
+
+float KeyValue(float L) {
+    return 1.03 - 2 / (2 + log10(L + 1));
+}
+
+float exposure() {
+    float L = exp(AverageLogLuminance) - 1;
+    return KeyValue(L) / L;
+}
+
+float3 TonemapFilmic(float3 color)
+{
+    float E = exposure();
+    float3 curr = Uncharted2Tonemap(E * color);
+    float3 whiteScale = 1.0f / Uncharted2Tonemap(W);
+    return curr * whiteScale;
+}
+
+float4 ps_tone_mapping_main(vs_out input) : SV_TARGET{
+    float4 color = txDiffuse.Sample(samLinear, input.tex);
+    return float4(pow(TonemapFilmic(color.xyz), 1 / 2.2), color.a);
 }
