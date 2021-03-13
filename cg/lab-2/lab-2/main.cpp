@@ -67,7 +67,7 @@ struct ConstantBuffer
     XMFLOAT4 _LightPos[3];
     XMFLOAT4 _LightColor[3];
     XMFLOAT4 _LightAttenuation[3];
-    float _LightIntensity[12];
+    float _LightIntensity[9];
 
     float _AverageLogLuminance;
 };
