@@ -180,9 +180,9 @@ ID3D11SamplerState* sampler_linear_ptr = NULL;
 
 RenderTexture render_texture;
 RenderTexture square_copy;
-vector<RenderTexture> luminance_textures;
+vector<RenderTexture> log_luminance_textures;
 
-ID3D11Texture2D* average_luminance_texture = NULL;
+ID3D11Texture2D* average_log_luminance_texture = NULL;
 
 D3D11_VIEWPORT viewport;
 
@@ -282,7 +282,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 #endif
     ID3DBlob* vs_blob_ptr = NULL, * ps_blob_ptr = NULL, * error_blob = NULL;
     ID3DBlob* vs_copy_blob_ptr = NULL, * ps_copy_blob_ptr = NULL, * copy_error_blob = NULL;
-    ID3DBlob* ps_luminance_blob_ptr = NULL, * luminance_error_blob = NULL;
+    ID3DBlob* ps_log_luminance_blob_ptr = NULL, * log_luminance_error_blob = NULL;
 
     // COMPILE VERTEX SHADER
     hr = D3DCompileFromFile(
@@ -362,23 +362,23 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         assert(false);
     }
 
-    // COMPILE PIXEL SHADER LUMINANCE
+    // COMPILE PIXEL SHADER LOGARITHM OF LUMINANCE
     hr = D3DCompileFromFile(
         L"../../lab-2/shaders.hlsl",
         nullptr,
         D3D_COMPILE_STANDARD_FILE_INCLUDE,
-        "ps_luminance_main",
+        "ps_log_luminance_main",
         "ps_5_0",
         flags,
         0,
-        &ps_luminance_blob_ptr,
-        &luminance_error_blob);
+        &ps_log_luminance_blob_ptr,
+        &log_luminance_error_blob);
     if (FAILED(hr)) {
-        if (luminance_error_blob) {
-            OutputDebugStringA((char*)luminance_error_blob->GetBufferPointer());
-            luminance_error_blob->Release();
+        if (log_luminance_error_blob) {
+            OutputDebugStringA((char*)log_luminance_error_blob->GetBufferPointer());
+            log_luminance_error_blob->Release();
         }
-        if (ps_luminance_blob_ptr) { ps_luminance_blob_ptr->Release(); }
+        if (ps_log_luminance_blob_ptr) { ps_log_luminance_blob_ptr->Release(); }
         assert(false);
     }
 
@@ -416,22 +416,22 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         &pixel_shader_copy_ptr);
     assert(SUCCEEDED(hr));
 
-    ID3D11PixelShader* pixel_shader_luminance_ptr = NULL;
+    ID3D11PixelShader* pixel_shader_log_luminance_ptr = NULL;
 
     hr = device_ptr->CreatePixelShader(
-        ps_luminance_blob_ptr->GetBufferPointer(),
-        ps_luminance_blob_ptr->GetBufferSize(),
+        ps_log_luminance_blob_ptr->GetBufferPointer(),
+        ps_log_luminance_blob_ptr->GetBufferSize(),
         NULL,
-        &pixel_shader_luminance_ptr);
+        &pixel_shader_log_luminance_ptr);
     assert(SUCCEEDED(hr));
 
-    CD3D11_TEXTURE2D_DESC average_luminance_texture_desc(DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 1);
-    average_luminance_texture_desc.MipLevels = 1;
-    average_luminance_texture_desc.BindFlags = 0;
-    average_luminance_texture_desc.Usage = D3D11_USAGE_STAGING;
-    average_luminance_texture_desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    CD3D11_TEXTURE2D_DESC average_log_luminance_texture_desc(DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 1);
+    average_log_luminance_texture_desc.MipLevels = 1;
+    average_log_luminance_texture_desc.BindFlags = 0;
+    average_log_luminance_texture_desc.Usage = D3D11_USAGE_STAGING;
+    average_log_luminance_texture_desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
 
-    hr = device_ptr->CreateTexture2D(&average_luminance_texture_desc, NULL, &average_luminance_texture);
+    hr = device_ptr->CreateTexture2D(&average_log_luminance_texture_desc, NULL, &average_log_luminance_texture);
     assert(SUCCEEDED(hr));
 
     ID3D11InputLayout* input_layout_ptr = NULL;
@@ -579,10 +579,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     square_copy.SetDevice(device_ptr);
     square_copy.SizeResources(1i64 << n, 1i64 << n);
 
-    luminance_textures.resize(n + 1);
+    log_luminance_textures.resize(n + 1);
     for (size_t i = 0; i <= n; ++i) {
-        luminance_textures[i].SetDevice(device_ptr);
-        luminance_textures[i].SizeResources(1i64 << (n - i), 1i64 << (n - i));
+        log_luminance_textures[i].SetDevice(device_ptr);
+        log_luminance_textures[i].SizeResources(1i64 << (n - i), 1i64 << (n - i));
     }
 
     // Run the message loop.
@@ -667,7 +667,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                 device_context_ptr->ClearRenderTargetView(square_copy_render_target_view, Colors::Black.f);
 
                 /**** Rasteriser state - set viewport area *****/
-                size_t n = luminance_textures.size() - 1;
+                size_t n = log_luminance_textures.size() - 1;
                 D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << n), FLOAT(1 << n), 0, 1 };
                 device_context_ptr->RSSetViewports(1, &vp);
 
@@ -689,18 +689,18 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             }
 
             auto square_copy_shader_resource_view = square_copy.GetShaderResourceView();
-            auto first_luminance_texture_render_target_view = luminance_textures.front().GetRenderTargetView();
+            auto first_log_luminance_texture_render_target_view = log_luminance_textures.front().GetRenderTargetView();
 
             {
-                device_context_ptr->ClearRenderTargetView(first_luminance_texture_render_target_view, Colors::Black.f);
+                device_context_ptr->ClearRenderTargetView(first_log_luminance_texture_render_target_view, Colors::Black.f);
 
                 /**** Rasteriser state - set viewport area *****/
-                size_t n = luminance_textures.size() - 1;
+                size_t n = log_luminance_textures.size() - 1;
                 D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << n), FLOAT(1 << n), 0, 1 };
                 device_context_ptr->RSSetViewports(1, &vp);
 
                 /**** Output Merger *****/
-                device_context_ptr->OMSetRenderTargets(1, &first_luminance_texture_render_target_view, NULL);
+                device_context_ptr->OMSetRenderTargets(1, &first_log_luminance_texture_render_target_view, NULL);
 
                 /***** Input Assembler (map how the vertex shader inputs should be read from vertex buffer) ******/
                 device_context_ptr->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
@@ -708,7 +708,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
                 /*** set vertex shader to use and pixel shader to use, and constant buffers for each ***/
                 device_context_ptr->VSSetShader(vertex_shader_copy_ptr, NULL, 0);
-                device_context_ptr->PSSetShader(pixel_shader_luminance_ptr, NULL, 0);
+                device_context_ptr->PSSetShader(pixel_shader_log_luminance_ptr, NULL, 0);
                 device_context_ptr->PSSetShaderResources(0, 1, &square_copy_shader_resource_view);
                 device_context_ptr->PSSetSamplers(0, 1, &sampler_linear_ptr);
 
@@ -717,19 +717,19 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             }
 
             {
-                size_t n = luminance_textures.size() - 1;
+                size_t n = log_luminance_textures.size() - 1;
                 for (size_t i = 1; i <= n; ++i) {
-                    auto previous_luminance_texture_shader_resource_view = luminance_textures[i - 1].GetShaderResourceView();
-                    auto next_luminance_texture_render_target_view = luminance_textures[i].GetRenderTargetView();
+                    auto previous_log_luminance_texture_shader_resource_view = log_luminance_textures[i - 1].GetShaderResourceView();
+                    auto next_log_luminance_texture_render_target_view = log_luminance_textures[i].GetRenderTargetView();
 
-                    device_context_ptr->ClearRenderTargetView(next_luminance_texture_render_target_view, Colors::Black.f);
+                    device_context_ptr->ClearRenderTargetView(next_log_luminance_texture_render_target_view, Colors::Black.f);
 
                     /**** Rasteriser state - set viewport area *****/
                     D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << (n - i)), FLOAT(1 << (n - i)), 0, 1 };
                     device_context_ptr->RSSetViewports(1, &vp);
 
                     /**** Output Merger *****/
-                    device_context_ptr->OMSetRenderTargets(1, &next_luminance_texture_render_target_view, NULL);
+                    device_context_ptr->OMSetRenderTargets(1, &next_log_luminance_texture_render_target_view, NULL);
 
                     /***** Input Assembler (map how the vertex shader inputs should be read from vertex buffer) ******/
                     device_context_ptr->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
@@ -738,7 +738,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                     /*** set vertex shader to use and pixel shader to use, and constant buffers for each ***/
                     device_context_ptr->VSSetShader(vertex_shader_copy_ptr, NULL, 0);
                     device_context_ptr->PSSetShader(pixel_shader_copy_ptr, NULL, 0);
-                    device_context_ptr->PSSetShaderResources(0, 1, &previous_luminance_texture_shader_resource_view);
+                    device_context_ptr->PSSetShaderResources(0, 1, &previous_log_luminance_texture_shader_resource_view);
                     device_context_ptr->PSSetSamplers(0, 1, &sampler_linear_ptr);
 
                     device_context_ptr->Draw(4, 0);
@@ -746,13 +746,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                 }
             }
 
-            D3D11_MAPPED_SUBRESOURCE average_luminance_mapped_subresource;
-            device_context_ptr->CopyResource(average_luminance_texture, luminance_textures.back().GetRenderTarget());
-            device_context_ptr->Map(average_luminance_texture, 0, D3D11_MAP_READ, 0, &average_luminance_mapped_subresource);
-            float average_luminance = ((float*)average_luminance_mapped_subresource.pData)[0];
-            device_context_ptr->Unmap(average_luminance_texture, 0);
+            D3D11_MAPPED_SUBRESOURCE average_log_luminance_mapped_subresource;
+            device_context_ptr->CopyResource(average_log_luminance_texture, log_luminance_textures.back().GetRenderTarget());
+            device_context_ptr->Map(average_log_luminance_texture, 0, D3D11_MAP_READ, 0, &average_log_luminance_mapped_subresource);
+            float average_log_luminance = ((float*)average_log_luminance_mapped_subresource.pData)[0];
+            device_context_ptr->Unmap(average_log_luminance_texture, 0);
 
-            OutputDebugStringA((to_string(average_luminance) + "\n").c_str());
+            OutputDebugStringA((to_string(average_log_luminance) + "\n").c_str());
 
             {
                 device_context_ptr->ClearRenderTargetView(render_target_view_ptr, Colors::Black.f);
@@ -794,12 +794,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     vertex_shader_copy_ptr->Release();
     pixel_shader_ptr->Release();
     pixel_shader_copy_ptr->Release();
-    pixel_shader_luminance_ptr->Release();
+    pixel_shader_log_luminance_ptr->Release();
     render_target_view_ptr->Release();
     swap_chain_ptr->Release();
     device_context_ptr->Release();
     device_ptr->Release();
-    average_luminance_texture->Release();
+    average_log_luminance_texture->Release();
 
     pAnnotation->Release();
 
@@ -940,9 +940,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
             size_t n = (size_t)log2((double)min(width, height));
             square_copy.SizeResources(1i64 << n, 1i64 << n);
-            luminance_textures.resize(n + 1);
+            log_luminance_textures.resize(n + 1);
             for (size_t i = 0; i <= n; ++i) {
-                luminance_textures[i].SizeResources(1i64 << (n - i), 1i64 << (n - i));
+                log_luminance_textures[i].SizeResources(1i64 << (n - i), 1i64 << (n - i));
             }
         }
         return 1;
