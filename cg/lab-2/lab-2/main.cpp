@@ -167,7 +167,7 @@ public:
 
     XMFLOAT4 _pos;
     XMFLOAT4 _color;
-    float _const_att = 1.0f, _lin_att = 0.1f, _exp_att = 0.01f;
+    float _const_att = 0.1f, _lin_att = 1.0f, _exp_att = 1.0f;
 
 private:
     float _intensities[3] = { 1.0f, 10.0f, 100.0f };
