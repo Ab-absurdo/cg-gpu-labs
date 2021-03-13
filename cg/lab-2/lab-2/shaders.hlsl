@@ -13,7 +13,7 @@ cbuffer ConstantBuffer : register(b0)
     float4 LightAttenuation[3];
     float LightIntensity[3];
 
-    float AverageLogLuminance;
+    float AdaptedLogLuminance;
 }
 
 /* vertex attributes go here to input to the vertex shader */
@@ -91,7 +91,7 @@ float KeyValue(float L) {
 }
 
 float exposure() {
-    float L = exp(AverageLogLuminance) - 1;
+    float L = exp(AdaptedLogLuminance) - 1;
     return KeyValue(L) / L;
 }
 

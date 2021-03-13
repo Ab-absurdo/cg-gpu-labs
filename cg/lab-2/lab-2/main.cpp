@@ -18,6 +18,7 @@
 
 #include <assert.h>
 
+#include <chrono>
 #include <string>
 #include <vector>
 
@@ -69,7 +70,7 @@ struct ConstantBuffer
     XMFLOAT4 _LightAttenuation[3];
     float _LightIntensity[9];
 
-    float _AverageLogLuminance;
+    float _AdaptedLogLuminance;
 };
 
 class Camera
@@ -624,6 +625,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
     ID3D11ShaderResourceView* const null[128] = { NULL };
 
+    float adapted_log_luminance = 0;
+
     // Run the message loop.
 
     MSG msg = {};
@@ -637,6 +640,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         if (msg.message == WM_QUIT) { break; }
 
         {   /*** RENDER A FRAME ***/
+
+            auto start = std::chrono::high_resolution_clock::now();
+
             {
                 pAnnotation->BeginEvent(L"Rendering start");
 
@@ -804,8 +810,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                 float average_log_luminance = ((float*)average_log_luminance_mapped_subresource.pData)[0];
                 device_context_ptr->Unmap(average_log_luminance_texture, 0);
 
+                auto end = std::chrono::high_resolution_clock::now();
+                float delta_t = std::chrono::duration<float>(end - start).count();
+                float s = 1;
+                adapted_log_luminance += (average_log_luminance - adapted_log_luminance) * (1 - expf(-delta_t / s));
+
                 ConstantBuffer cb;
-                cb._AverageLogLuminance = average_log_luminance;
+                cb._AdaptedLogLuminance = adapted_log_luminance;
 
                 device_context_ptr->UpdateSubresource(constant_buffer_ptr, 0, nullptr, &cb, 0, 0);
 
