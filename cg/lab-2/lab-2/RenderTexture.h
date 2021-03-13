@@ -21,7 +21,7 @@ namespace DX
     class RenderTexture
     {
     public:
-        RenderTexture(DXGI_FORMAT format) noexcept;
+        RenderTexture(DXGI_FORMAT format = DXGI_FORMAT_R32G32B32A32_FLOAT) noexcept;
 
         RenderTexture(RenderTexture&&) = default;
         RenderTexture& operator= (RenderTexture&&) = default;

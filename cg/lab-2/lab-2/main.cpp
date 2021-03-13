@@ -19,6 +19,7 @@
 #include <assert.h>
 
 #include <string>
+#include <vector>
 
 #define DEBUG_LAYER
 
@@ -30,6 +31,7 @@
 
 using namespace DX;
 using namespace DirectX;
+using namespace std;
 
 enum Keys
 {
@@ -176,7 +178,11 @@ ID3D11RenderTargetView* render_target_view_ptr = NULL;
 ID3D11ShaderResourceView* texture_rv_ptr = NULL;
 ID3D11SamplerState* sampler_linear_ptr = NULL;
 
-RenderTexture render_texture(DXGI_FORMAT_R32G32B32A32_FLOAT);
+RenderTexture render_texture;
+RenderTexture square_copy;
+vector<RenderTexture> luminance_textures;
+
+ID3D11Texture2D* average_luminance_texture = NULL;
 
 D3D11_VIEWPORT viewport;
 
@@ -189,6 +195,7 @@ WorldBorders borders = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 Camera camera;
 PointLight lights[3];
 
+ID3D11ShaderResourceView* const null[128] = { NULL };
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -275,6 +282,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 #endif
     ID3DBlob* vs_blob_ptr = NULL, * ps_blob_ptr = NULL, * error_blob = NULL;
     ID3DBlob* vs_copy_blob_ptr = NULL, * ps_copy_blob_ptr = NULL, * copy_error_blob = NULL;
+    ID3DBlob* ps_luminance_blob_ptr = NULL, * luminance_error_blob = NULL;
 
     // COMPILE VERTEX SHADER
     hr = D3DCompileFromFile(
@@ -354,6 +362,26 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         assert(false);
     }
 
+    // COMPILE PIXEL SHADER LUMINANCE
+    hr = D3DCompileFromFile(
+        L"../../lab-2/shaders.hlsl",
+        nullptr,
+        D3D_COMPILE_STANDARD_FILE_INCLUDE,
+        "ps_luminance_main",
+        "ps_5_0",
+        flags,
+        0,
+        &ps_luminance_blob_ptr,
+        &luminance_error_blob);
+    if (FAILED(hr)) {
+        if (luminance_error_blob) {
+            OutputDebugStringA((char*)luminance_error_blob->GetBufferPointer());
+            luminance_error_blob->Release();
+        }
+        if (ps_luminance_blob_ptr) { ps_luminance_blob_ptr->Release(); }
+        assert(false);
+    }
+
     ID3D11VertexShader* vertex_shader_ptr = NULL;
     ID3D11PixelShader* pixel_shader_ptr = NULL;
 
@@ -386,6 +414,24 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         ps_copy_blob_ptr->GetBufferSize(),
         NULL,
         &pixel_shader_copy_ptr);
+    assert(SUCCEEDED(hr));
+
+    ID3D11PixelShader* pixel_shader_luminance_ptr = NULL;
+
+    hr = device_ptr->CreatePixelShader(
+        ps_luminance_blob_ptr->GetBufferPointer(),
+        ps_luminance_blob_ptr->GetBufferSize(),
+        NULL,
+        &pixel_shader_luminance_ptr);
+    assert(SUCCEEDED(hr));
+
+    CD3D11_TEXTURE2D_DESC average_luminance_texture_desc(DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 1);
+    average_luminance_texture_desc.MipLevels = 1;
+    average_luminance_texture_desc.BindFlags = 0;
+    average_luminance_texture_desc.Usage = D3D11_USAGE_STAGING;
+    average_luminance_texture_desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+
+    hr = device_ptr->CreateTexture2D(&average_luminance_texture_desc, NULL, &average_luminance_texture);
     assert(SUCCEEDED(hr));
 
     ID3D11InputLayout* input_layout_ptr = NULL;
@@ -437,10 +483,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     camera = Camera(pos, dir);
 
     // setup light sources
-    size_t n = 3;
+    size_t light_sources_number = 3;
     float r = 2.0f, h = 5.0f;
-    for (int i = 0; i < n; i++)
-        lights[i]._pos = XMFLOAT4(r * sinf(i *XM_2PI / n), h, r * cosf(i * XM_2PI / n), 0.0f);
+    for (int i = 0; i < light_sources_number; i++)
+        lights[i]._pos = XMFLOAT4(r * sinf(i *XM_2PI / light_sources_number), h, r * cosf(i * XM_2PI / light_sources_number), 0.0f);
     lights[0]._color = (XMFLOAT4)Colors::Red;
     lights[1]._color = (XMFLOAT4)Colors::Lime;
     lights[2]._color = (XMFLOAT4)Colors::Blue;
@@ -529,6 +575,16 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     render_texture.SetDevice(device_ptr);
     render_texture.SetWindow(winRect);
 
+    size_t n = (size_t)log2(min(width, height));
+    square_copy.SetDevice(device_ptr);
+    square_copy.SizeResources(1i64 << n, 1i64 << n);
+
+    luminance_textures.resize(n + 1);
+    for (size_t i = 0; i <= n; ++i) {
+        luminance_textures[i].SetDevice(device_ptr);
+        luminance_textures[i].SizeResources(1i64 << (n - i), 1i64 << (n - i));
+    }
+
     // Run the message loop.
 
     MSG msg = {};
@@ -542,90 +598,187 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         if (msg.message == WM_QUIT) { break; }
 
         {   /*** RENDER A FRAME ***/
-           
-            pAnnotation->BeginEvent(L"Rendering start");
-
-            /* clear the back buffer to black for the new frame */
-            auto render_texture_render_target_view = render_texture.GetRenderTargetView();
-            device_context_ptr->ClearRenderTargetView(render_texture_render_target_view, Colors::Black.f);
-
-            /**** Rasteriser state - set viewport area *****/
-            device_context_ptr->RSSetViewports(1, &viewport);
-
-            /**** Output Merger *****/
-            device_context_ptr->OMSetRenderTargets(1, &render_texture_render_target_view, NULL);
-
-            /***** Input Assembler (map how the vertex shader inputs should be read from vertex buffer) ******/
-            device_context_ptr->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-            device_context_ptr->IASetInputLayout(input_layout_ptr);
-            device_context_ptr->IASetVertexBuffers(0, 1, &vertex_buffer_ptr, &vertex_stride, &vertex_offset);
-            device_context_ptr->IASetIndexBuffer(index_buffer_ptr, DXGI_FORMAT_R16_UINT, 0);
-
-            pAnnotation->EndEvent();
-
-            pAnnotation->BeginEvent(L"Setting up camera view");
-            View = camera.getViewMatrix();
-
-            pAnnotation->EndEvent();
-
-
-            //
-            // Update variables
-            //
-            ConstantBuffer cb;
-            cb._World = XMMatrixTranspose(World);
-            cb._View = XMMatrixTranspose(View);
-            cb._Projection = XMMatrixTranspose(Projection);
-            for (int i = 0; i < 3; i++)
             {
-                cb._LightPos[i] = lights[i]._pos;
-                cb._LightColor[i] = lights[i]._color;
-                XMFLOAT4 att(lights[i]._const_att, lights[i]._lin_att, lights[i]._exp_att, 0.0f);
-                cb._LightAttenuation[i] = att;
-                cb._LightIntensity[4*i] = lights[i].getIntensity();
+                pAnnotation->BeginEvent(L"Rendering start");
+
+                /* clear the back buffer to black for the new frame */
+                auto render_texture_render_target_view = render_texture.GetRenderTargetView();
+                device_context_ptr->ClearRenderTargetView(render_texture_render_target_view, Colors::Black.f);
+
+                /**** Rasteriser state - set viewport area *****/
+                device_context_ptr->RSSetViewports(1, &viewport);
+
+                /**** Output Merger *****/
+                device_context_ptr->OMSetRenderTargets(1, &render_texture_render_target_view, NULL);
+
+                /***** Input Assembler (map how the vertex shader inputs should be read from vertex buffer) ******/
+                device_context_ptr->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                device_context_ptr->IASetInputLayout(input_layout_ptr);
+                device_context_ptr->IASetVertexBuffers(0, 1, &vertex_buffer_ptr, &vertex_stride, &vertex_offset);
+                device_context_ptr->IASetIndexBuffer(index_buffer_ptr, DXGI_FORMAT_R16_UINT, 0);
+
+                pAnnotation->EndEvent();
+
+                pAnnotation->BeginEvent(L"Setting up camera view");
+                View = camera.getViewMatrix();
+
+                pAnnotation->EndEvent();
+
+
+                //
+                // Update variables
+                //
+                ConstantBuffer cb;
+                cb._World = XMMatrixTranspose(World);
+                cb._View = XMMatrixTranspose(View);
+                cb._Projection = XMMatrixTranspose(Projection);
+                for (int i = 0; i < 3; i++)
+                {
+                    cb._LightPos[i] = lights[i]._pos;
+                    cb._LightColor[i] = lights[i]._color;
+                    XMFLOAT4 att(lights[i]._const_att, lights[i]._lin_att, lights[i]._exp_att, 0.0f);
+                    cb._LightAttenuation[i] = att;
+                    cb._LightIntensity[4 * i] = lights[i].getIntensity();
+                }
+                device_context_ptr->UpdateSubresource(constant_buffer_ptr, 0, nullptr, &cb, 0, 0);
+
+                /*** set vertex shader to use and pixel shader to use, and constant buffers for each ***/
+                device_context_ptr->VSSetShader(vertex_shader_ptr, NULL, 0);
+                device_context_ptr->VSSetConstantBuffers(0, 1, &constant_buffer_ptr);
+                device_context_ptr->PSSetShader(pixel_shader_ptr, NULL, 0);
+                device_context_ptr->PSSetConstantBuffers(0, 1, &constant_buffer_ptr);
+                device_context_ptr->PSSetShaderResources(0, 1, &texture_rv_ptr);
+                device_context_ptr->PSSetSamplers(0, 1, &sampler_linear_ptr);
+
+                pAnnotation->BeginEvent(L"Draw");
+
+                /*** draw the vertex buffer with the shaders ****/
+                device_context_ptr->DrawIndexed(indices_number, 0, 0);
+                device_context_ptr->PSSetShaderResources(0, 128, null);
+
+                pAnnotation->EndEvent();
             }
-            device_context_ptr->UpdateSubresource(constant_buffer_ptr, 0, nullptr, &cb, 0, 0);
-
-            /*** set vertex shader to use and pixel shader to use, and constant buffers for each ***/
-            device_context_ptr->VSSetShader(vertex_shader_ptr, NULL, 0);
-            device_context_ptr->VSSetConstantBuffers(0, 1, &constant_buffer_ptr);
-            device_context_ptr->PSSetShader(pixel_shader_ptr, NULL, 0);
-            device_context_ptr->PSSetConstantBuffers(0, 1, &constant_buffer_ptr);
-            device_context_ptr->PSSetShaderResources(0, 1, &texture_rv_ptr);
-            device_context_ptr->PSSetSamplers(0, 1, &sampler_linear_ptr);
-
-            pAnnotation->BeginEvent(L"Draw");
-
-            /*** draw the vertex buffer with the shaders ****/
-            device_context_ptr->DrawIndexed(indices_number, 0, 0);
-            ID3D11ShaderResourceView* const null[128] = { NULL };
-            device_context_ptr->PSSetShaderResources(0, 128, null);
-
-            pAnnotation->EndEvent();
 
             auto render_texture_shader_resource_view = render_texture.GetShaderResourceView();
 
-            /**** Rasteriser state - set viewport area *****/
-            device_context_ptr->RSSetViewports(1, &viewport);
+            auto square_copy_render_target_view = square_copy.GetRenderTargetView();
 
-            /**** Output Merger *****/
-            device_context_ptr->OMSetRenderTargets(1, &render_target_view_ptr, NULL);
+            {
+                device_context_ptr->ClearRenderTargetView(square_copy_render_target_view, Colors::Black.f);
 
-            /***** Input Assembler (map how the vertex shader inputs should be read from vertex buffer) ******/
-            device_context_ptr->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-            device_context_ptr->IASetInputLayout(nullptr);
+                /**** Rasteriser state - set viewport area *****/
+                size_t n = luminance_textures.size() - 1;
+                D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << n), FLOAT(1 << n), 0, 1 };
+                device_context_ptr->RSSetViewports(1, &vp);
 
-            /*** set vertex shader to use and pixel shader to use, and constant buffers for each ***/
-            device_context_ptr->VSSetShader(vertex_shader_copy_ptr, NULL, 0);
-            device_context_ptr->PSSetShader(pixel_shader_copy_ptr, NULL, 0);
-            device_context_ptr->PSSetShaderResources(0, 1, &render_texture_shader_resource_view);
-            device_context_ptr->PSSetSamplers(0, 1, &sampler_linear_ptr);
+                /**** Output Merger *****/
+                device_context_ptr->OMSetRenderTargets(1, &square_copy_render_target_view, NULL);
 
-            device_context_ptr->Draw(4, 0);
-            device_context_ptr->PSSetShaderResources(0, 128, null);
+                /***** Input Assembler (map how the vertex shader inputs should be read from vertex buffer) ******/
+                device_context_ptr->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+                device_context_ptr->IASetInputLayout(nullptr);
 
-            /**** swap the back and front buffers (show the frame we just drew) ****/
-            swap_chain_ptr->Present(1, 0);
+                /*** set vertex shader to use and pixel shader to use, and constant buffers for each ***/
+                device_context_ptr->VSSetShader(vertex_shader_copy_ptr, NULL, 0);
+                device_context_ptr->PSSetShader(pixel_shader_copy_ptr, NULL, 0);
+                device_context_ptr->PSSetShaderResources(0, 1, &render_texture_shader_resource_view);
+                device_context_ptr->PSSetSamplers(0, 1, &sampler_linear_ptr);
+
+                device_context_ptr->Draw(4, 0);
+                device_context_ptr->PSSetShaderResources(0, 128, null);
+            }
+
+            auto square_copy_shader_resource_view = square_copy.GetShaderResourceView();
+            auto first_luminance_texture_render_target_view = luminance_textures.front().GetRenderTargetView();
+
+            {
+                device_context_ptr->ClearRenderTargetView(first_luminance_texture_render_target_view, Colors::Black.f);
+
+                /**** Rasteriser state - set viewport area *****/
+                size_t n = luminance_textures.size() - 1;
+                D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << n), FLOAT(1 << n), 0, 1 };
+                device_context_ptr->RSSetViewports(1, &vp);
+
+                /**** Output Merger *****/
+                device_context_ptr->OMSetRenderTargets(1, &first_luminance_texture_render_target_view, NULL);
+
+                /***** Input Assembler (map how the vertex shader inputs should be read from vertex buffer) ******/
+                device_context_ptr->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+                device_context_ptr->IASetInputLayout(nullptr);
+
+                /*** set vertex shader to use and pixel shader to use, and constant buffers for each ***/
+                device_context_ptr->VSSetShader(vertex_shader_copy_ptr, NULL, 0);
+                device_context_ptr->PSSetShader(pixel_shader_luminance_ptr, NULL, 0);
+                device_context_ptr->PSSetShaderResources(0, 1, &square_copy_shader_resource_view);
+                device_context_ptr->PSSetSamplers(0, 1, &sampler_linear_ptr);
+
+                device_context_ptr->Draw(4, 0);
+                device_context_ptr->PSSetShaderResources(0, 128, null);
+            }
+
+            {
+                size_t n = luminance_textures.size() - 1;
+                for (size_t i = 1; i <= n; ++i) {
+                    auto previous_luminance_texture_shader_resource_view = luminance_textures[i - 1].GetShaderResourceView();
+                    auto next_luminance_texture_render_target_view = luminance_textures[i].GetRenderTargetView();
+
+                    device_context_ptr->ClearRenderTargetView(next_luminance_texture_render_target_view, Colors::Black.f);
+
+                    /**** Rasteriser state - set viewport area *****/
+                    D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << (n - i)), FLOAT(1 << (n - i)), 0, 1 };
+                    device_context_ptr->RSSetViewports(1, &vp);
+
+                    /**** Output Merger *****/
+                    device_context_ptr->OMSetRenderTargets(1, &next_luminance_texture_render_target_view, NULL);
+
+                    /***** Input Assembler (map how the vertex shader inputs should be read from vertex buffer) ******/
+                    device_context_ptr->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+                    device_context_ptr->IASetInputLayout(nullptr);
+
+                    /*** set vertex shader to use and pixel shader to use, and constant buffers for each ***/
+                    device_context_ptr->VSSetShader(vertex_shader_copy_ptr, NULL, 0);
+                    device_context_ptr->PSSetShader(pixel_shader_copy_ptr, NULL, 0);
+                    device_context_ptr->PSSetShaderResources(0, 1, &previous_luminance_texture_shader_resource_view);
+                    device_context_ptr->PSSetSamplers(0, 1, &sampler_linear_ptr);
+
+                    device_context_ptr->Draw(4, 0);
+                    device_context_ptr->PSSetShaderResources(0, 128, null);
+                }
+            }
+
+            D3D11_MAPPED_SUBRESOURCE average_luminance_mapped_subresource;
+            device_context_ptr->CopyResource(average_luminance_texture, luminance_textures.back().GetRenderTarget());
+            device_context_ptr->Map(average_luminance_texture, 0, D3D11_MAP_READ, 0, &average_luminance_mapped_subresource);
+            float average_luminance = ((float*)average_luminance_mapped_subresource.pData)[0];
+            device_context_ptr->Unmap(average_luminance_texture, 0);
+
+            OutputDebugStringA((to_string(average_luminance) + "\n").c_str());
+
+            {
+                device_context_ptr->ClearRenderTargetView(render_target_view_ptr, Colors::Black.f);
+
+                /**** Rasteriser state - set viewport area *****/
+                device_context_ptr->RSSetViewports(1, &viewport);
+
+                /**** Output Merger *****/
+                device_context_ptr->OMSetRenderTargets(1, &render_target_view_ptr, NULL);
+
+                /***** Input Assembler (map how the vertex shader inputs should be read from vertex buffer) ******/
+                device_context_ptr->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+                device_context_ptr->IASetInputLayout(nullptr);
+
+                /*** set vertex shader to use and pixel shader to use, and constant buffers for each ***/
+                device_context_ptr->VSSetShader(vertex_shader_copy_ptr, NULL, 0);
+                device_context_ptr->PSSetShader(pixel_shader_copy_ptr, NULL, 0);
+                device_context_ptr->PSSetShaderResources(0, 1, &render_texture_shader_resource_view);
+                device_context_ptr->PSSetSamplers(0, 1, &sampler_linear_ptr);
+
+                device_context_ptr->Draw(4, 0);
+                device_context_ptr->PSSetShaderResources(0, 128, null);
+
+                /**** swap the back and front buffers (show the frame we just drew) ****/
+                swap_chain_ptr->Present(1, 0);
+            }
         } // end of frame
     } // end of main loop
 
@@ -641,10 +794,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     vertex_shader_copy_ptr->Release();
     pixel_shader_ptr->Release();
     pixel_shader_copy_ptr->Release();
+    pixel_shader_luminance_ptr->Release();
     render_target_view_ptr->Release();
     swap_chain_ptr->Release();
     device_context_ptr->Release();
     device_ptr->Release();
+    average_luminance_texture->Release();
 
     pAnnotation->Release();
 
@@ -782,6 +937,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             Projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, (FLOAT)width / (FLOAT)height, near_z, far_z);
 
             render_texture.SizeResources(width, height);
+
+            size_t n = (size_t)log2((double)min(width, height));
+            square_copy.SizeResources(1i64 << n, 1i64 << n);
+            luminance_textures.resize(n + 1);
+            for (size_t i = 0; i <= n; ++i) {
+                luminance_textures[i].SizeResources(1i64 << (n - i), 1i64 << (n - i));
+            }
         }
         return 1;
 

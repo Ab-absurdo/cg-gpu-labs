@@ -61,7 +61,12 @@ vs_out vs_copy_main(uint input : SV_VERTEXID) {
     return output;
 }
 
-float4 ps_copy_main(vs_out input) : SV_TARGET
-{
+float4 ps_copy_main(vs_out input) : SV_TARGET{
     return txDiffuse.Sample(samLinear, input.tex);
+}
+
+float4 ps_luminance_main(vs_out input) : SV_TARGET{
+    float4 p = txDiffuse.Sample(samLinear, input.tex);
+    float L = 0.2126 * p.r + 0.7151 * p.g + 0.0722 * p.b;
+    return log(L + 1);
 }
