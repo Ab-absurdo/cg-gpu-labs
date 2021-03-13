@@ -184,8 +184,6 @@ RenderTexture render_texture;
 RenderTexture square_copy;
 vector<RenderTexture> log_luminance_textures;
 
-ID3D11Texture2D* average_log_luminance_texture = NULL;
-
 D3D11_VIEWPORT viewport;
 
 XMMATRIX World = XMMatrixIdentity();
@@ -196,8 +194,6 @@ XMMATRIX Translation = XMMatrixIdentity();
 WorldBorders borders = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 Camera camera;
 PointLight lights[3];
-
-ID3D11ShaderResourceView* const null[128] = { NULL };
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -463,6 +459,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     average_log_luminance_texture_desc.Usage = D3D11_USAGE_STAGING;
     average_log_luminance_texture_desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
 
+    ID3D11Texture2D* average_log_luminance_texture;
     hr = device_ptr->CreateTexture2D(&average_log_luminance_texture_desc, NULL, &average_log_luminance_texture);
     assert(SUCCEEDED(hr));
 
@@ -624,6 +621,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         log_luminance_textures[i].SetDevice(device_ptr);
         log_luminance_textures[i].SizeResources(1i64 << (n - i), 1i64 << (n - i));
     }
+
+    ID3D11ShaderResourceView* const null[128] = { NULL };
 
     // Run the message loop.
 
