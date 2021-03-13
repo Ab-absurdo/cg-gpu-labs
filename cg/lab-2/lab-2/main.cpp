@@ -13,6 +13,7 @@
 #include <directxcolors.h>
 
 #include "DDSTextureLoader.h"
+#include "RenderTexture.h"
 #include "../renderdoc_app.h"
 
 #include <assert.h>
@@ -27,6 +28,7 @@
 #pragma comment( lib, "d3dcompiler.lib" ) // shader compiler
 #pragma comment( lib, "dxguid.lib") 
 
+using namespace DX;
 using namespace DirectX;
 
 enum Keys
@@ -174,6 +176,8 @@ ID3D11RenderTargetView* render_target_view_ptr = NULL;
 ID3D11ShaderResourceView* texture_rv_ptr = NULL;
 ID3D11SamplerState* sampler_linear_ptr = NULL;
 
+RenderTexture render_texture(DXGI_FORMAT_R32G32B32A32_FLOAT);
+
 D3D11_VIEWPORT viewport;
 
 XMMATRIX World = XMMatrixIdentity();
@@ -270,6 +274,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     flags |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION; // add more debug output
 #endif
     ID3DBlob* vs_blob_ptr = NULL, * ps_blob_ptr = NULL, * error_blob = NULL;
+    ID3DBlob* vs_copy_blob_ptr = NULL, * ps_copy_blob_ptr = NULL, * copy_error_blob = NULL;
 
     // COMPILE VERTEX SHADER
     hr = D3DCompileFromFile(
@@ -310,6 +315,45 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         assert(false);
     }
 
+    // COMPILE VERTEX SHADER COPY
+    hr = D3DCompileFromFile(
+        L"../../lab-2/shaders.hlsl",
+        nullptr,
+        D3D_COMPILE_STANDARD_FILE_INCLUDE,
+        "vs_copy_main",
+        "vs_5_0",
+        flags,
+        0,
+        &vs_copy_blob_ptr,
+        &copy_error_blob);
+    if (FAILED(hr)) {
+        if (copy_error_blob) {
+            OutputDebugStringA((char*)copy_error_blob->GetBufferPointer());
+            copy_error_blob->Release();
+        }
+        if (vs_copy_blob_ptr) { vs_copy_blob_ptr->Release(); }
+        assert(false);
+    }
+    // COMPILE PIXEL SHADER COPY
+    hr = D3DCompileFromFile(
+        L"../../lab-2/shaders.hlsl",
+        nullptr,
+        D3D_COMPILE_STANDARD_FILE_INCLUDE,
+        "ps_copy_main",
+        "ps_5_0",
+        flags,
+        0,
+        &ps_copy_blob_ptr,
+        &copy_error_blob);
+    if (FAILED(hr)) {
+        if (copy_error_blob) {
+            OutputDebugStringA((char*)copy_error_blob->GetBufferPointer());
+            copy_error_blob->Release();
+        }
+        if (ps_copy_blob_ptr) { ps_copy_blob_ptr->Release(); }
+        assert(false);
+    }
+
     ID3D11VertexShader* vertex_shader_ptr = NULL;
     ID3D11PixelShader* pixel_shader_ptr = NULL;
 
@@ -325,6 +369,23 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         ps_blob_ptr->GetBufferSize(),
         NULL,
         &pixel_shader_ptr);
+    assert(SUCCEEDED(hr));
+
+    ID3D11VertexShader* vertex_shader_copy_ptr = NULL;
+    ID3D11PixelShader* pixel_shader_copy_ptr = NULL;
+
+    hr = device_ptr->CreateVertexShader(
+        vs_copy_blob_ptr->GetBufferPointer(),
+        vs_copy_blob_ptr->GetBufferSize(),
+        NULL,
+        &vertex_shader_copy_ptr);
+    assert(SUCCEEDED(hr));
+
+    hr = device_ptr->CreatePixelShader(
+        ps_copy_blob_ptr->GetBufferPointer(),
+        ps_copy_blob_ptr->GetBufferSize(),
+        NULL,
+        &pixel_shader_copy_ptr);
     assert(SUCCEEDED(hr));
 
     ID3D11InputLayout* input_layout_ptr = NULL;
@@ -465,6 +526,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     float near_z = 0.01f, far_z = 100.0f;
     Projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, width / (FLOAT)height, near_z, far_z);
 
+    render_texture.SetDevice(device_ptr);
+    render_texture.SetWindow(winRect);
+
     // Run the message loop.
 
     MSG msg = {};
@@ -481,15 +545,15 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
            
             pAnnotation->BeginEvent(L"Rendering start");
 
-            /* clear the back buffer to cornflower blue for the new frame */
-            float background_colour[4] = { 0x64 / 255.0f, 0x95 / 255.0f, 0xED / 255.0f, 1.0f };
-            device_context_ptr->ClearRenderTargetView(render_target_view_ptr, background_colour);
+            /* clear the back buffer to black for the new frame */
+            auto render_texture_render_target_view = render_texture.GetRenderTargetView();
+            device_context_ptr->ClearRenderTargetView(render_texture_render_target_view, Colors::Black.f);
 
             /**** Rasteriser state - set viewport area *****/
             device_context_ptr->RSSetViewports(1, &viewport);
 
             /**** Output Merger *****/
-            device_context_ptr->OMSetRenderTargets(1, &render_target_view_ptr, NULL);
+            device_context_ptr->OMSetRenderTargets(1, &render_texture_render_target_view, NULL);
 
             /***** Input Assembler (map how the vertex shader inputs should be read from vertex buffer) ******/
             device_context_ptr->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -534,8 +598,31 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
             /*** draw the vertex buffer with the shaders ****/
             device_context_ptr->DrawIndexed(indices_number, 0, 0);
+            ID3D11ShaderResourceView* const null[128] = { NULL };
+            device_context_ptr->PSSetShaderResources(0, 128, null);
 
             pAnnotation->EndEvent();
+
+            auto render_texture_shader_resource_view = render_texture.GetShaderResourceView();
+
+            /**** Rasteriser state - set viewport area *****/
+            device_context_ptr->RSSetViewports(1, &viewport);
+
+            /**** Output Merger *****/
+            device_context_ptr->OMSetRenderTargets(1, &render_target_view_ptr, NULL);
+
+            /***** Input Assembler (map how the vertex shader inputs should be read from vertex buffer) ******/
+            device_context_ptr->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+            device_context_ptr->IASetInputLayout(nullptr);
+
+            /*** set vertex shader to use and pixel shader to use, and constant buffers for each ***/
+            device_context_ptr->VSSetShader(vertex_shader_copy_ptr, NULL, 0);
+            device_context_ptr->PSSetShader(pixel_shader_copy_ptr, NULL, 0);
+            device_context_ptr->PSSetShaderResources(0, 1, &render_texture_shader_resource_view);
+            device_context_ptr->PSSetSamplers(0, 1, &sampler_linear_ptr);
+
+            device_context_ptr->Draw(4, 0);
+            device_context_ptr->PSSetShaderResources(0, 128, null);
 
             /**** swap the back and front buffers (show the frame we just drew) ****/
             swap_chain_ptr->Present(1, 0);
@@ -551,7 +638,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     texture_rv_ptr->Release();
     sampler_linear_ptr->Release();
     vertex_shader_ptr->Release();
+    vertex_shader_copy_ptr->Release();
     pixel_shader_ptr->Release();
+    pixel_shader_copy_ptr->Release();
     render_target_view_ptr->Release();
     swap_chain_ptr->Release();
     device_context_ptr->Release();
@@ -650,8 +739,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case WM_SIZE:
         if (swap_chain_ptr)
         {
-            FLOAT width = LOWORD(lParam);
-            FLOAT height = HIWORD(lParam);
+            size_t width = LOWORD(lParam);
+            size_t height = HIWORD(lParam);
 
             device_context_ptr->OMSetRenderTargets(0, 0, 0);
 
@@ -686,11 +775,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             device_context_ptr->OMSetRenderTargets(1, &render_target_view_ptr, NULL);
 
             // Set up the viewport.
-            viewport = { 0, 0, width, height, 0.0f, 1.0f };
+            viewport = { 0, 0, (FLOAT)width, (FLOAT)height, 0.0f, 1.0f };
 
             // Setup projection
             float near_z = 0.01f, far_z = 100.0f;
-            Projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, width / (FLOAT)height, near_z, far_z);
+            Projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, (FLOAT)width / (FLOAT)height, near_z, far_z);
+
+            render_texture.SizeResources(width, height);
         }
         return 1;
 

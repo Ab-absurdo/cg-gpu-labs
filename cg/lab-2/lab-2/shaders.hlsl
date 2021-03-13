@@ -53,3 +53,15 @@ float4 ps_main(vs_out input) : SV_TARGET{
     }
     return txDiffuse.Sample(samLinear, input.tex) * color;
 }
+
+vs_out vs_copy_main(uint input : SV_VERTEXID) {
+    vs_out output = (vs_out)0; // zero the memory first
+    output.tex = float2(input & 1, input >> 1);
+    output.position_clip = float4((output.tex.x - 0.5f) * 2, -(output.tex.y - 0.5f) * 2, 0, 1);
+    return output;
+}
+
+float4 ps_copy_main(vs_out input) : SV_TARGET
+{
+    return txDiffuse.Sample(samLinear, input.tex);
+}
