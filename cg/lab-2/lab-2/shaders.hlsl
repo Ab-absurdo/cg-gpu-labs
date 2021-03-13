@@ -45,7 +45,7 @@ vs_out vs_main(vs_in input) {
 float4 ps_main(vs_out input) : SV_TARGET{
     float4 color = 0;
     float3 light_dir;
-    float dist, att, deg = 2.0f;
+    float dist, att, deg = 5.0f;
     for (int i = 0; i < 3; i++)
     {
         light_dir = LightPos[i].xyz - input.position_world.xyz;
