@@ -286,7 +286,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
     // COMPILE VERTEX SHADER
     hr = D3DCompileFromFile(
-        L"../../lab-2/shaders.hlsl",
+        L"../../lab-3/shaders.hlsl",
         nullptr,
         D3D_COMPILE_STANDARD_FILE_INCLUDE,
         "vs_main",
@@ -305,7 +305,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     }
     // COMPILE PIXEL SHADER
     hr = D3DCompileFromFile(
-        L"../../lab-2/shaders.hlsl",
+        L"../../lab-3/shaders.hlsl",
         nullptr,
         D3D_COMPILE_STANDARD_FILE_INCLUDE,
         "ps_main",
@@ -325,7 +325,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
     // COMPILE VERTEX SHADER COPY
     hr = D3DCompileFromFile(
-        L"../../lab-2/shaders.hlsl",
+        L"../../lab-3/shaders.hlsl",
         nullptr,
         D3D_COMPILE_STANDARD_FILE_INCLUDE,
         "vs_copy_main",
@@ -344,7 +344,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     }
     // COMPILE PIXEL SHADER COPY
     hr = D3DCompileFromFile(
-        L"../../lab-2/shaders.hlsl",
+        L"../../lab-3/shaders.hlsl",
         nullptr,
         D3D_COMPILE_STANDARD_FILE_INCLUDE,
         "ps_copy_main",
@@ -364,7 +364,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
     // COMPILE PIXEL SHADER LOGARITHM OF LUMINANCE
     hr = D3DCompileFromFile(
-        L"../../lab-2/shaders.hlsl",
+        L"../../lab-3/shaders.hlsl",
         nullptr,
         D3D_COMPILE_STANDARD_FILE_INCLUDE,
         "ps_log_luminance_main",
@@ -384,7 +384,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
     // COMPILE PIXEL SHADER TONE MAPPING
     hr = D3DCompileFromFile(
-        L"../../lab-2/shaders.hlsl",
+        L"../../lab-3/shaders.hlsl",
         nullptr,
         D3D_COMPILE_STANDARD_FILE_INCLUDE,
         "ps_tone_mapping_main",
@@ -570,7 +570,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     // Load the Texture
     hr = CreateDDSTextureFromFileEx(device_ptr,
         nullptr,
-        L"../../lab-2/seafloor.dds",
+        L"../../lab-3/seafloor.dds",
         0,
         D3D11_USAGE_DEFAULT,
         D3D11_BIND_SHADER_RESOURCE,
