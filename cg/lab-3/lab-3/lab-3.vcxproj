@@ -139,8 +139,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Camera.cpp" />
     <ClCompile Include="DDSTextureLoader.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="PointLight.cpp" />
     <ClCompile Include="RenderTexture.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -161,8 +163,11 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Camera.h" />
     <ClInclude Include="DDSTextureLoader.h" />
+    <ClInclude Include="PointLight.h" />
     <ClInclude Include="RenderTexture.h" />
+    <ClInclude Include="WorldBorders.h" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="seafloor.dds" />
