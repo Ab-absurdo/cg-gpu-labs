@@ -17,7 +17,7 @@
 #include "PointLight.h"
 #include "RenderTexture.h"
 #include "WorldBorders.h"
-#include "../renderdoc_app.h"
+#include "renderdoc_app.h"
 
 #include <assert.h>
 
@@ -26,12 +26,6 @@
 #include <vector>
 
 #define DEBUG_LAYER
-
-#pragma comment( lib, "user32" )          // link against the win32 library
-#pragma comment( lib, "d3d11.lib" )       // direct3D library
-#pragma comment( lib, "dxgi.lib" )        // directx graphics interface
-#pragma comment( lib, "d3dcompiler.lib" ) // shader compiler
-#pragma comment( lib, "dxguid.lib") 
 
 using namespace DX;
 using namespace DirectX;
