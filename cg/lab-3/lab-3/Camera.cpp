@@ -11,7 +11,7 @@ namespace rendering {
         _up = { 0.0f, 1.0f, 0.0f };
     }
 
-    Camera::Camera(const DirectX::XMVECTOR& pos, const DirectX::XMVECTOR& dir)
+    Camera::Camera(const XMVECTOR& pos, const XMVECTOR& dir)
         : _pos(pos) {
         _dir = XMVector3Normalize(dir);
         _up = { 0.0f, 1.0f, 0.0f };
@@ -40,14 +40,14 @@ namespace rendering {
     void Camera::rotateVertical(float angle) {
         angle = std::clamp(angle, -XM_PIDIV2 - _vertical_angle, XM_PIDIV2 - _vertical_angle);
         _vertical_angle += angle;
-        _dir = DirectX::XMVector3Rotate(_dir, DirectX::XMQuaternionRotationAxis(-getTangentVector(), angle));
+        _dir = XMVector3Rotate(_dir, XMQuaternionRotationAxis(-getTangentVector(), angle));
     }
 
     void Camera::positionClip(const WorldBorders& b) {
-        _pos = DirectX::XMVectorClamp(_pos, b._min, b._max);
+        _pos = XMVectorClamp(_pos, b._min, b._max);
     }
 
-    DirectX::XMVECTOR Camera::getTangentVector() {
-        return DirectX::XMVector3Normalize(DirectX::XMVector3Cross(_dir, _up));
+    XMVECTOR Camera::getTangentVector() {
+        return XMVector3Normalize(XMVector3Cross(_dir, _up));
     }
 }
