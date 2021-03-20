@@ -1,7 +1,5 @@
 #include "PointLight.h"
 
-#include <DirectXColors.h>
-
 namespace rendering {
     float PointLight::getIntensity() {
         return _intensities[_current_index];
