@@ -363,10 +363,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     borders._max = { 20.0f, 10.0f, 20.0f };
 
     SimpleVertex vertices[] = {
-        { XMFLOAT3(DirectX::XMVectorGetX(borders._min), 0.0f, DirectX::XMVectorGetZ(borders._min)), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f) },
-        { XMFLOAT3(DirectX::XMVectorGetX(borders._max), 0.0f, DirectX::XMVectorGetZ(borders._min)), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(10.0f, 0.0f) },
-        { XMFLOAT3(DirectX::XMVectorGetX(borders._max), 0.0f, DirectX::XMVectorGetZ(borders._max)), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(10.0f, 10.0f) },
-        { XMFLOAT3(DirectX::XMVectorGetX(borders._min), 0.0f, DirectX::XMVectorGetZ(borders._max)), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 10.0f) },
+        { XMFLOAT3(XMVectorGetX(borders._min), 0.0f, XMVectorGetZ(borders._min)), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f) },
+        { XMFLOAT3(XMVectorGetX(borders._max), 0.0f, XMVectorGetZ(borders._min)), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(10.0f, 0.0f) },
+        { XMFLOAT3(XMVectorGetX(borders._max), 0.0f, XMVectorGetZ(borders._max)), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(10.0f, 10.0f) },
+        { XMFLOAT3(XMVectorGetX(borders._min), 0.0f, XMVectorGetZ(borders._max)), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 10.0f) },
     };
 
     WORD indices[] = {
