@@ -1,15 +1,18 @@
 #include "PointLight.h"
 
-#include <directxcolors.h>
+#include <DirectXColors.h>
 
-using namespace DirectX;
+namespace rendering {
+    PointLight::PointLight() {
+        _pos = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+        _color = (DirectX::XMFLOAT4)DirectX::Colors::White;
+    }
 
-PointLight::PointLight()
-{
-    _pos = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
-    _color = (XMFLOAT4)Colors::White;
+    float PointLight::getIntensity() {
+        return _intensities[_current_index];
+    }
+
+    void PointLight::changeIntensity() {
+        _current_index = (_current_index + 1) % 3;
+    }
 }
-
-float PointLight::getIntensity() { return _intensities[_current_index]; }
-
-void PointLight::changeIntensity() { _current_index = (_current_index + 1) % 3; }

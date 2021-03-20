@@ -1,25 +1,15 @@
-#ifndef UNICODE
-#define UNICODE
-#endif 
+#include <d3dcompiler.h>
+#include <DirectXColors.h>
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <windowsx.h>
-#include <d3d11.h>       // D3D interface
-#include "d3d11_1.h"
-#include <dxgi.h>        // DirectX driver interface
-#include <d3dcompiler.h> // shader compiler
-#include <directxmath.h>
-#include <directxcolors.h>
+#include "DDSTextureLoader.h"
+#include "renderdoc_app.h"
+#include "RenderTexture.h"
 
 #include "Camera.h"
-#include "DDSTextureLoader.h"
 #include "PointLight.h"
-#include "RenderTexture.h"
 #include "WorldBorders.h"
-#include "renderdoc_app.h"
 
-#include <assert.h>
+#include <cassert>
 
 #include <chrono>
 #include <string>
@@ -30,6 +20,7 @@
 using namespace DX;
 using namespace DirectX;
 using namespace std;
+using namespace rendering;
 
 enum Keys
 {
@@ -368,25 +359,17 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         &input_layout_ptr);
     assert(SUCCEEDED(hr));
 
+    borders._min = { -20.0f, 0.2f, -20.0f };
+    borders._max = { 20.0f, 10.0f, 20.0f };
 
-    // setup geometry
-    borders.x_min = -20.0f;
-    borders.x_max = 20.0f;
-    borders.y_min = 0.2f;
-    borders.y_max = 10.0f;
-    borders.z_min = -20.0f;
-    borders.z_max = 20.0f;
-    SimpleVertex vertices[] =
-
-    {
-        {XMFLOAT3(borders.x_min, 0.0f, borders.z_min), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f)},
-        {XMFLOAT3(borders.x_max, 0.0f, borders.z_min), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(10.0f, 0.0f)},
-        {XMFLOAT3(borders.x_max, 0.0f, borders.z_max), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(10.0f, 10.0f)},
-        {XMFLOAT3(borders.x_min, 0.0f, borders.z_max), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 10.0f)},
+    SimpleVertex vertices[] = {
+        { XMFLOAT3(DirectX::XMVectorGetX(borders._min), 0.0f, DirectX::XMVectorGetZ(borders._min)), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f) },
+        { XMFLOAT3(DirectX::XMVectorGetX(borders._max), 0.0f, DirectX::XMVectorGetZ(borders._min)), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(10.0f, 0.0f) },
+        { XMFLOAT3(DirectX::XMVectorGetX(borders._max), 0.0f, DirectX::XMVectorGetZ(borders._max)), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(10.0f, 10.0f) },
+        { XMFLOAT3(DirectX::XMVectorGetX(borders._min), 0.0f, DirectX::XMVectorGetZ(borders._max)), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 10.0f) },
     };
 
-    WORD indices[] =
-    {
+    WORD indices[] = {
         3, 1, 0,
         2, 1, 3,
     };
