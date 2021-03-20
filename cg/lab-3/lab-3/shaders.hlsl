@@ -1,109 +1,106 @@
-Texture2D txDiffuse : register(t0);
+Texture2D _tx_diffuse : register(t0);
 
-SamplerState samLinear : register(s0);
+SamplerState _sam_linear : register(s0);
 
-cbuffer ConstantBuffer : register(b0)
-{
-    matrix World;
-    matrix View;
-    matrix Projection;
+cbuffer ConstantBuffer : register(b0) {
+    matrix _world;
+    matrix _view;
+    matrix _projection;
 
-    float4 LightPos[3];
-    float4 LightColor[3];
-    float4 LightAttenuation[3];
-    float LightIntensity[3];
+    float4 _light_pos[3];
+    float4 _light_color[3];
+    float4 _light_attenuation[3];
+    float _light_intensity[3];
 
-    float AdaptedLogLuminance;
+    float _adapted_log_luminance;
 }
 
-/* vertex attributes go here to input to the vertex shader */
-struct vs_in {
-    float4 position_local : POS;
-    float3 normal_local : NOR;
-    float2 texture_local : TEX;
+struct VsIn {
+    float4 _position_local : POS;
+    float3 _normal_local : NOR;
+    float2 _texture_local : TEX;
 };
 
-/* outputs from vertex shader go here. can be interpolated to pixel shader */
-struct vs_out {
-    float4 position_clip : SV_POSITION; // required output of VS
-    float4 position_world : TEXCOORD0;
-    float3 normal_world : TEXCOORD1;
-    float2 tex : TEXCOORD2;
+struct VsOut {
+    float4 _position_clip : SV_POSITION;
+    float4 _position_world : TEXCOORD0;
+    float3 _normal_world : TEXCOORD1;
+    float2 _tex : TEXCOORD2;
 };
 
-vs_out vs_main(vs_in input) {
-    vs_out output = (vs_out)0; // zero the memory first
-    output.position_world = mul(input.position_local, World);
-    output.normal_world = mul(float4(input.normal_local, 1), World).xyz;
+VsOut vsMain(VsIn input) {
+    VsOut output = (VsOut)0;
+    output._position_world = mul(input._position_local, _world);
+    output._normal_world = mul(float4(input._normal_local, 1), _world).xyz;
 
-    output.position_clip = mul(output.position_world, View);
-    output.position_clip = mul(output.position_clip, Projection);
-    output.tex = input.texture_local;
+    output._position_clip = mul(output._position_world, _view);
+    output._position_clip = mul(output._position_clip, _projection);
+    output._tex = input._texture_local;
+
     return output;
 }
 
-float4 ps_main(vs_out input) : SV_TARGET{
+float4 psMain(VsOut input) : SV_TARGET {
+    float deg = 5.0f;
     float4 color = 0;
-    float3 light_dir;
-    float dist, att, deg = 5.0f;
     for (int i = 0; i < 3; i++)
     {
-        light_dir = LightPos[i].xyz - input.position_world.xyz;
-        dist = length(light_dir);
-        att = LightAttenuation[i].x + LightAttenuation[i].y * dist + LightAttenuation[i].z * dist * dist;
-        color += pow(dot(light_dir / dist, input.normal_world), deg) / att * LightIntensity[i] * LightColor[i];
+        float3 light_dir = _light_pos[i].xyz - input._position_world.xyz;
+        float dist = length(light_dir);
+        float att = _light_attenuation[i].x + _light_attenuation[i].y * dist + _light_attenuation[i].z * dist * dist;
+        color += pow(dot(light_dir / dist, input._normal_world), deg) / att * _light_intensity[i] * _light_color[i];
     }
-    return txDiffuse.Sample(samLinear, input.tex) * color;
+    return _tx_diffuse.Sample(_sam_linear, input._tex) * color;
 }
 
-vs_out vs_copy_main(uint input : SV_VERTEXID) {
-    vs_out output = (vs_out)0; // zero the memory first
-    output.tex = float2(input & 1, input >> 1);
-    output.position_clip = float4((output.tex.x - 0.5f) * 2, -(output.tex.y - 0.5f) * 2, 0, 1);
+VsOut vsCopyMain(uint input : SV_VERTEXID) {
+    VsOut output = (VsOut)0;
+    output._tex = float2(input & 1, input >> 1);
+    output._position_clip = float4((output._tex.x - 0.5f) * 2, -(output._tex.y - 0.5f) * 2, 0, 1);
     return output;
 }
 
-float4 ps_copy_main(vs_out input) : SV_TARGET{
-    return txDiffuse.Sample(samLinear, input.tex);
+float4 psCopyMain(VsOut input) : SV_TARGET {
+    return _tx_diffuse.Sample(_sam_linear, input._tex);
 }
 
-float4 ps_log_luminance_main(vs_out input) : SV_TARGET{
-    float4 p = txDiffuse.Sample(samLinear, input.tex);
-    float L = 0.2126 * p.r + 0.7151 * p.g + 0.0722 * p.b;
-    return log(L + 1);
+float4 psLogLuminanceMain(VsOut input) : SV_TARGET {
+    float4 p = _tx_diffuse.Sample(_sam_linear, input._tex);
+    float l = 0.2126 * p.r + 0.7151 * p.g + 0.0722 * p.b;
+    return log(l + 1);
 }
 
-static const float A = 0.1;  // Shoulder Strength
-static const float B = 0.50; // Linear Strength
-static const float C = 0.1;  // Linear Angle
-static const float D = 0.20; // Toe Strength
-static const float E = 0.02; // Toe Numerator
-static const float F = 0.30; // Toe Denominator
+static const float a = 0.1;  // Shoulder Strength
+static const float b = 0.50; // Linear Strength
+static const float c = 0.1;  // Linear Angle
+static const float d = 0.20; // Toe Strength
+static const float e = 0.02; // Toe Numerator
+static const float f = 0.30; // Toe Denominator
                              // Note: E/F = Toe Angle
-static const float W = 11.2; // Linear White Point Value
+static const float w = 11.2; // Linear White Point Value
 
-float3 Uncharted2Tonemap(float3 x) {
-    return ((x * (A * x + C * B) + D * E) / (x * (A * x + B) + D * F)) - E / F;
+float3 uncharted2Tonemap(float3 x) {
+    return ((x * (a * x + c * b) + d * e) / (x * (a * x + b) + d * f)) - e / f;
 }
 
-float KeyValue(float L) {
-    return 1.03 - 2 / (2 + log10(L + 1));
+float keyValue(float l) {
+    return 1.03 - 2 / (2 + log10(l + 1));
 }
 
 float exposure() {
-    float L = exp(AdaptedLogLuminance) - 1;
-    return KeyValue(L) / L;
+    float L = exp(_adapted_log_luminance) - 1;
+    return keyValue(L) / L;
 }
 
-float3 TonemapFilmic(float3 color)
+float3 tonemapFilmic(float3 color)
 {
-    float E = exposure();
-    float3 curr = Uncharted2Tonemap(E * color);
-    float3 whiteScale = 1.0f / Uncharted2Tonemap(W);
-    return curr * whiteScale;
+    float e = exposure();
+    float3 curr = uncharted2Tonemap(e * color);
+    float3 white_scale = 1.0f / uncharted2Tonemap(w);
+    return curr * white_scale;
 }
 
-float4 ps_tone_mapping_main(vs_out input) : SV_TARGET{
-    float4 color = txDiffuse.Sample(samLinear, input.tex);
-    return float4(pow(TonemapFilmic(color.xyz), 1 / 2.2), color.a);
+float4 psToneMappingMain(VsOut input) : SV_TARGET {
+    float4 color = _tx_diffuse.Sample(_sam_linear, input._tex);
+    return float4(pow(tonemapFilmic(color.xyz), 1 / 2.2), color.a);
 }
