@@ -7,8 +7,7 @@
 namespace rendering {
     class Camera {
     public:
-        Camera();
-        Camera(const DirectX::XMVECTOR& pos, const DirectX::XMVECTOR& dir);
+        Camera(const DirectX::XMVECTOR& pos = { 0.0f, 0.0f, 0.0f }, const DirectX::XMVECTOR& dir = { 0.0f, 0.0f, 1.0f });
 
         DirectX::XMMATRIX getViewMatrix();
 

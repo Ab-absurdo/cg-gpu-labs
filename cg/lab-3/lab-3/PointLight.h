@@ -5,8 +5,6 @@
 namespace rendering {
     class PointLight {
     public:
-        PointLight();
-
         float getIntensity();
         void changeIntensity();
 

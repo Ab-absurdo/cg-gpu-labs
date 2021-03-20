@@ -5,12 +5,6 @@
 using namespace DirectX;
 
 namespace rendering {
-    Camera::Camera() {
-        _pos = { 0.0f, 0.0f, 0.0f };
-        _dir = { 0.0f, 0.0f, 1.0f };
-        _up = { 0.0f, 1.0f, 0.0f };
-    }
-
     Camera::Camera(const XMVECTOR& pos, const XMVECTOR& dir)
         : _pos(pos) {
         _dir = XMVector3Normalize(dir);

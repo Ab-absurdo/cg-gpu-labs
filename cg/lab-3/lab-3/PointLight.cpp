@@ -3,11 +3,6 @@
 #include <DirectXColors.h>
 
 namespace rendering {
-    PointLight::PointLight() {
-        _pos = { 0.0f, 0.0f, 0.0f, 0.0f };
-        _color = (DirectX::XMFLOAT4)DirectX::Colors::White;
-    }
-
     float PointLight::getIntensity() {
         return _intensities[_current_index];
     }
