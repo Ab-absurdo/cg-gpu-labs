@@ -4,7 +4,7 @@
 
 namespace rendering {
     PointLight::PointLight() {
-        _pos = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+        _pos = { 0.0f, 0.0f, 0.0f, 0.0f };
         _color = (DirectX::XMFLOAT4)DirectX::Colors::White;
     }
 
