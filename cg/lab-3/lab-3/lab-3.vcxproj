@@ -172,10 +172,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Camera.h" />
+    <ClInclude Include="ConstantBuffer.h" />
     <ClInclude Include="DDSTextureLoader.h" />
+    <ClInclude Include="Keys.h" />
     <ClInclude Include="PointLight.h" />
     <ClInclude Include="renderdoc_app.h" />
     <ClInclude Include="RenderTexture.h" />
+    <ClInclude Include="SimpleVertex.h" />
     <ClInclude Include="WorldBorders.h" />
   </ItemGroup>
   <ItemGroup>

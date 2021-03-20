@@ -6,7 +6,10 @@
 #include "RenderTexture.h"
 
 #include "Camera.h"
+#include "ConstantBuffer.h"
+#include "Keys.h"
 #include "PointLight.h"
+#include "SimpleVertex.h"
 #include "WorldBorders.h"
 
 #include <cassert>
@@ -21,38 +24,6 @@ using namespace DX;
 using namespace DirectX;
 using namespace std;
 using namespace rendering;
-
-enum Keys
-{
-    W_KEY = 87,
-    A_KEY = 65,
-    S_KEY = 83,
-    D_KEY = 68,
-    _1_KEY = 49,
-    _2_KEY = 50,
-    _3_KEY = 51,
-};
-
-struct SimpleVertex
-{
-    XMFLOAT3 _Pos;
-    XMFLOAT3 _Nor;
-    XMFLOAT2 _Tex;
-};
-
-struct ConstantBuffer
-{
-    XMMATRIX _World;
-    XMMATRIX _View;
-    XMMATRIX _Projection;
-
-    XMFLOAT4 _LightPos[3];
-    XMFLOAT4 _LightColor[3];
-    XMFLOAT4 _LightAttenuation[3];
-    float _LightIntensity[9];
-
-    float _AdaptedLogLuminance;
-};
 
 ID3D11Device* device_ptr = NULL;
 ID3D11DeviceContext* device_context_ptr = NULL;
@@ -546,16 +517,16 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                 // Update variables
                 //
                 ConstantBuffer cb;
-                cb._World = XMMatrixTranspose(World);
-                cb._View = XMMatrixTranspose(View);
-                cb._Projection = XMMatrixTranspose(Projection);
+                cb._world = XMMatrixTranspose(World);
+                cb._view = XMMatrixTranspose(View);
+                cb._projection = XMMatrixTranspose(Projection);
                 for (int i = 0; i < 3; i++)
                 {
-                    cb._LightPos[i] = lights[i]._pos;
-                    cb._LightColor[i] = lights[i]._color;
+                    cb._light_pos[i] = lights[i]._pos;
+                    cb._light_color[i] = lights[i]._color;
                     XMFLOAT4 att(lights[i]._const_att, lights[i]._lin_att, lights[i]._exp_att, 0.0f);
-                    cb._LightAttenuation[i] = att;
-                    cb._LightIntensity[4 * i] = lights[i].getIntensity();
+                    cb._light_attenuation[i] = att;
+                    cb._light_intensity[4 * i] = lights[i].getIntensity();
                 }
                 device_context_ptr->UpdateSubresource(constant_buffer_ptr, 0, nullptr, &cb, 0, 0);
 
@@ -688,7 +659,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
                 adapted_log_luminance += (average_log_luminance - adapted_log_luminance) * (1 - expf(-delta_t / s));
 
                 ConstantBuffer cb;
-                cb._AdaptedLogLuminance = adapted_log_luminance;
+                cb._adapted_log_luminance = adapted_log_luminance;
 
                 device_context_ptr->UpdateSubresource(constant_buffer_ptr, 0, nullptr, &cb, 0, 0);
 
@@ -743,31 +714,31 @@ LRESULT keyhandler(WPARAM wParam, LPARAM lParam)
     float step = 0.1f;
     switch (wParam)
     {
-    case W_KEY:
+    case (WPARAM)Keys::W_KEY:
         camera.moveNormal(step);
         camera.positionClip(borders);
         break;
-    case S_KEY:
+    case (WPARAM)Keys::S_KEY:
         camera.moveNormal(-step);
         camera.positionClip(borders);
         break;
-    case A_KEY:
+    case (WPARAM)Keys::A_KEY:
         camera.moveTangent(step);
         camera.positionClip(borders);
         break;
-    case D_KEY:
+    case (WPARAM)Keys::D_KEY:
         camera.moveTangent(-step);
         camera.positionClip(borders);
         break;
-    case _1_KEY:
+    case (WPARAM)Keys::_1_KEY:
         if (!b30)
             lights[0].changeIntensity();
         break;
-    case _2_KEY:
+    case (WPARAM)Keys::_2_KEY:
         if (!b30)
             lights[1].changeIntensity();
         break;
-    case _3_KEY:
+    case (WPARAM)Keys::_3_KEY:
         if (!b30)
             lights[2].changeIntensity();
         break;
