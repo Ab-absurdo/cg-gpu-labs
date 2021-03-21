@@ -151,6 +151,7 @@
     <ClCompile Include="DDSTextureLoader.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="PointLight.cpp" />
+    <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="RenderTexture.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -177,6 +178,7 @@
     <ClInclude Include="Keys.h" />
     <ClInclude Include="PointLight.h" />
     <ClInclude Include="renderdoc_app.h" />
+    <ClInclude Include="Renderer.h" />
     <ClInclude Include="RenderTexture.h" />
     <ClInclude Include="SimpleVertex.h" />
     <ClInclude Include="WorldBorders.h" />
