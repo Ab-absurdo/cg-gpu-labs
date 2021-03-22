@@ -53,9 +53,6 @@
     <ClInclude Include="WorldBorders.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
-    <ClInclude Include="renderdoc_app.h">
-      <Filter>Файлы заголовков</Filter>
-    </ClInclude>
     <ClInclude Include="Keys.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>

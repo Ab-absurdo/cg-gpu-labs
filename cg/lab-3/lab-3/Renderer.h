@@ -6,7 +6,6 @@
 #include <vector>
 
 #include "RenderTexture.h"
-#include "renderdoc_app.h"
 
 #include "Camera.h"
 #include "PointLight.h"

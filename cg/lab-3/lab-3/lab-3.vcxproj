@@ -177,7 +177,6 @@
     <ClInclude Include="DDSTextureLoader.h" />
     <ClInclude Include="Keys.h" />
     <ClInclude Include="PointLight.h" />
-    <ClInclude Include="renderdoc_app.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="RenderTexture.h" />
     <ClInclude Include="SimpleVertex.h" />
