@@ -40,6 +40,7 @@ namespace rendering {
 
     void Renderer::initResources() {
         initDevice();
+        initDepthStencil();
         initShaders();
         initInputLayout();
     }
@@ -73,6 +74,42 @@ namespace rendering {
         hr = _device_ptr->CreateRenderTargetView(framebuffer, 0, &_render_target_view_ptr);
         assert(SUCCEEDED(hr));
         framebuffer->Release();
+    }
+
+    void Renderer::initDepthStencil()
+    {
+        RECT rc;
+        GetClientRect(_hwnd, &rc);
+        UINT width = rc.right - rc.left;
+        UINT height = rc.bottom - rc.top;
+
+        // Create depth stencil texture
+        D3D11_TEXTURE2D_DESC descDepth;
+        ZeroMemory(&descDepth, sizeof(descDepth));
+        descDepth.Width = width;
+        descDepth.Height = height;
+        descDepth.MipLevels = 1;
+        descDepth.ArraySize = 1;
+        descDepth.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        descDepth.SampleDesc.Count = 1;
+        descDepth.SampleDesc.Quality = 0;
+        descDepth.Usage = D3D11_USAGE_DEFAULT;
+        descDepth.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+        descDepth.CPUAccessFlags = 0;
+        descDepth.MiscFlags = 0;
+        HRESULT hr = _device_ptr->CreateTexture2D(&descDepth, nullptr, &_depth_stencil_ptr);
+        assert(SUCCEEDED(hr));
+
+        // Create the depth stencil view
+        D3D11_DEPTH_STENCIL_VIEW_DESC descDSV;
+        ZeroMemory(&descDSV, sizeof(descDSV));
+        descDSV.Format = descDepth.Format;
+        descDSV.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+        descDSV.Texture2D.MipSlice = 0;
+        hr = _device_ptr->CreateDepthStencilView(_depth_stencil_ptr, &descDSV, &_depth_stencil_view_ptr);
+        assert(SUCCEEDED(hr));
+
+        _device_context_ptr->OMSetRenderTargets(1, &_render_target_view_ptr, _depth_stencil_view_ptr);
     }
 
     void Renderer::initShaders() {
@@ -190,23 +227,14 @@ namespace rendering {
     }
 
     void Renderer::initScene() {
-        _borders._min = { -20.0f, 0.2f, -20.0f };
+        _borders._min = { -20.0f, -10.0f, -20.0f };
         _borders._max = { 20.0f, 10.0f, 20.0f };
 
-        SimpleVertex vertices[] = {
-            { DirectX::XMFLOAT3(DirectX::XMVectorGetX(_borders._min), 0.0f, DirectX::XMVectorGetZ(_borders._min)), DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f), DirectX::XMFLOAT2(0.0f, 0.0f) },
-            { DirectX::XMFLOAT3(DirectX::XMVectorGetX(_borders._max), 0.0f, DirectX::XMVectorGetZ(_borders._min)), DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f), DirectX::XMFLOAT2(10.0f, 0.0f) },
-            { DirectX::XMFLOAT3(DirectX::XMVectorGetX(_borders._max), 0.0f, DirectX::XMVectorGetZ(_borders._max)), DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f), DirectX::XMFLOAT2(10.0f, 10.0f) },
-            { DirectX::XMFLOAT3(DirectX::XMVectorGetX(_borders._min), 0.0f, DirectX::XMVectorGetZ(_borders._max)), DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f), DirectX::XMFLOAT2(0.0f, 10.0f) },
-        };
+        Sphere sphere(1.0f, 30, 30, true);
+        const SimpleVertex *vertices = sphere.getVertices();
+        const WORD* indices = sphere.getIndices();
 
-        WORD indices[] = {
-            3, 1, 0,
-            2, 1, 3,
-        };
-
-        UINT vertices_number = sizeof(vertices) / sizeof(vertices[0]);
-        _indices_number = sizeof(indices) / sizeof(indices[0]);
+        _indices_number = sphere._n_indices;
         _vertex_stride = sizeof(SimpleVertex);
         _vertex_offset = 0;
 
@@ -214,9 +242,12 @@ namespace rendering {
         DirectX::XMVECTOR dir = DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
         _camera = Camera(pos, dir);
 
+        _ambient_light = DirectX::XMFLOAT4(0.1, 0.1, 0.1, 0);
+
         size_t light_sources_number = 3;
         float r = 2.0f, h = 5.0f;
-        for (int i = 0; i < light_sources_number; i++) {
+        _lights[0]._pos = { 0.0f, -h, r, 0.0f };
+        for (int i = 1; i < light_sources_number; i++) {
             _lights[i]._pos = { r * sinf(i * DirectX::XM_2PI / light_sources_number), h, r * cosf(i * DirectX::XM_2PI / light_sources_number), 0.0f };
         }
         _lights[0]._color = (DirectX::XMFLOAT4)DirectX::Colors::Red;
@@ -225,7 +256,7 @@ namespace rendering {
 
         {
             D3D11_BUFFER_DESC vertex_buff_descr = {};
-            vertex_buff_descr.ByteWidth = sizeof(vertices);
+            vertex_buff_descr.ByteWidth = sizeof(SimpleVertex) * sphere._n_vertices;
             vertex_buff_descr.Usage = D3D11_USAGE_DEFAULT;
             vertex_buff_descr.BindFlags = D3D11_BIND_VERTEX_BUFFER;
             D3D11_SUBRESOURCE_DATA sr_data = { 0 };
@@ -236,7 +267,7 @@ namespace rendering {
 
         {
             D3D11_BUFFER_DESC index_buff_descr = {};
-            index_buff_descr.ByteWidth = sizeof(indices);
+            index_buff_descr.ByteWidth = sizeof(WORD) * _indices_number;
             index_buff_descr.Usage = D3D11_USAGE_DEFAULT;
             index_buff_descr.BindFlags = D3D11_BIND_INDEX_BUFFER;
             index_buff_descr.CPUAccessFlags = 0;
@@ -337,6 +368,7 @@ namespace rendering {
             cb._world = DirectX::XMMatrixTranspose(_world);
             cb._view = DirectX::XMMatrixTranspose(_view);
             cb._projection = DirectX::XMMatrixTranspose(_projection);
+            cb._ambient_light = _ambient_light;
             for (int i = 0; i < 3; i++)
             {
                 cb._light_pos[i] = _lights[i]._pos;
@@ -592,6 +624,9 @@ namespace rendering {
         _pixel_shader_copy_ptr->Release();
         _pixel_shader_log_luminance_ptr->Release();
         _pixel_shader_tone_mapping_ptr->Release();
+
+        _depth_stencil_ptr->Release();
+        _depth_stencil_view_ptr->Release();
 
         _render_target_view_ptr->Release();
         _swap_chain_ptr->Release();

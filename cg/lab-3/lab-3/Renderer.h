@@ -10,6 +10,7 @@
 #include "Camera.h"
 #include "PointLight.h"
 #include "WorldBorders.h"
+#include "Geometry.h"
 
 namespace rendering {
     class Renderer {
@@ -26,6 +27,7 @@ namespace rendering {
         void initWindow(HINSTANCE h_instance, WNDPROC window_proc, int n_cmd_show);
         void initResources();
         void initDevice();
+        void initDepthStencil();
         void initShaders();
         void initInputLayout();
         void initScene();
@@ -36,6 +38,9 @@ namespace rendering {
         ID3D11DeviceContext* _device_context_ptr = nullptr;
         IDXGISwapChain* _swap_chain_ptr = nullptr;
         ID3D11RenderTargetView* _render_target_view_ptr = nullptr;
+
+        ID3D11Texture2D* _depth_stencil_ptr = nullptr;
+        ID3D11DepthStencilView* _depth_stencil_view_ptr = nullptr;
 
         ID3DBlob* _vs_blob_ptr = nullptr;
 
@@ -56,6 +61,7 @@ namespace rendering {
         WorldBorders _borders;
         Camera _camera;
         PointLight _lights[3];
+        DirectX::XMFLOAT4 _ambient_light;
 
         UINT _vertex_stride;
         UINT _vertex_offset;

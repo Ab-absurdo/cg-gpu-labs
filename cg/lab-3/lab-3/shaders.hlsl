@@ -7,6 +7,7 @@ cbuffer ConstantBuffer : register(b0) {
     matrix _view;
     matrix _projection;
 
+    float4 _ambient_light;
     float4 _light_pos[3];
     float4 _light_color[3];
     float4 _light_attenuation[3];
@@ -42,13 +43,14 @@ VsOut vsMain(VsIn input) {
 
 float4 psMain(VsOut input) : SV_TARGET {
     float deg = 5.0f;
-    float4 color = 0;
+    float4 color = _ambient_light;
     for (int i = 0; i < 3; i++)
     {
         float3 light_dir = _light_pos[i].xyz - input._position_world.xyz;
         float dist = length(light_dir);
         float att = _light_attenuation[i].x + _light_attenuation[i].y * dist + _light_attenuation[i].z * dist * dist;
-        color += pow(dot(light_dir / dist, input._normal_world), deg) / att * _light_intensity[i] * _light_color[i];
+        float dot_multiplier = pow(clamp(dot(light_dir / dist, input._normal_world), 0.0f, 1.0f), deg);
+        color += dot_multiplier / att * _light_intensity[i] * _light_color[i];
     }
     return _tx_diffuse.Sample(_sam_linear, input._tex) * color;
 }

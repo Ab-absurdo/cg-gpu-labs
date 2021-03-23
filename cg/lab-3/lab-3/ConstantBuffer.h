@@ -8,6 +8,7 @@ namespace rendering {
         DirectX::XMMATRIX _view;
         DirectX::XMMATRIX _projection;
 
+        DirectX::XMFLOAT4 _ambient_light;
         DirectX::XMFLOAT4 _light_pos[3];
         DirectX::XMFLOAT4 _light_color[3];
         DirectX::XMFLOAT4 _light_attenuation[3];
