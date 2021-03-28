@@ -46,6 +46,24 @@ namespace rendering {
     }
 
     void Renderer::initDevice() {
+        IDXGIFactory* p_factory;
+        HRESULT hr = CreateDXGIFactory(__uuidof(IDXGIFactory), (void**)(&p_factory));
+        assert(SUCCEEDED(hr));
+
+        IDXGIAdapter* best_p_adapter;
+        p_factory->EnumAdapters(0, &best_p_adapter);
+        DXGI_ADAPTER_DESC best_p_adapter_desc;
+        best_p_adapter->GetDesc(&best_p_adapter_desc);
+        IDXGIAdapter* p_adapter;
+        for (UINT i = 1; p_factory->EnumAdapters(i, &p_adapter) != DXGI_ERROR_NOT_FOUND; ++i) {
+            DXGI_ADAPTER_DESC p_adapter_desc;
+            p_adapter->GetDesc(&p_adapter_desc);
+            if (p_adapter_desc.DedicatedVideoMemory > best_p_adapter_desc.DedicatedVideoMemory) {
+                best_p_adapter = p_adapter;
+                best_p_adapter_desc = p_adapter_desc;
+            }
+        }
+
         DXGI_SWAP_CHAIN_DESC swap_chain_descr = { 0 };
         swap_chain_descr.BufferDesc.RefreshRate.Numerator = 0;
         swap_chain_descr.BufferDesc.RefreshRate.Denominator = 1;
@@ -64,7 +82,7 @@ namespace rendering {
         flags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
-        HRESULT hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, flags, nullptr, 0, D3D11_SDK_VERSION, &swap_chain_descr, &_swap_chain_ptr, &_device_ptr, &feature_level, &_device_context_ptr);
+        hr = D3D11CreateDeviceAndSwapChain(best_p_adapter, D3D_DRIVER_TYPE_UNKNOWN, nullptr, flags, nullptr, 0, D3D11_SDK_VERSION, &swap_chain_descr, &_swap_chain_ptr, &_device_ptr, &feature_level, &_device_context_ptr);
         assert(S_OK == hr && _swap_chain_ptr && _device_ptr && _device_context_ptr);
 
         ID3D11Texture2D* framebuffer;
