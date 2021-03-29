@@ -32,6 +32,8 @@ namespace rendering {
         void initInputLayout();
         void initScene();
 
+        void resizeResources(size_t width, size_t height);
+
         HWND _hwnd;
 
         ID3D11Device* _p_device = nullptr;

@@ -224,6 +224,27 @@ namespace rendering {
         assert(SUCCEEDED(hr));
     }
 
+    void Renderer::resizeResources(size_t width, size_t height) {
+        _viewport = { 0.0f, 0.0f, (FLOAT)(width), (FLOAT)(height), 0.0f, 1.0f };
+
+        // Setup projection
+        float near_z = 0.01f, far_z = 100.0f;
+        _projection = DirectX::XMMatrixPerspectiveFovLH(DirectX::XM_PIDIV2, width / (FLOAT)height, near_z, far_z);
+
+        _render_texture.SetDevice(_p_device);
+        _render_texture.SizeResources(width, height);
+
+        size_t n = (size_t)log2((double)min(width, height));
+        _square_copy.SetDevice(_p_device);
+        _square_copy.SizeResources(1i64 << n, 1i64 << n);
+
+        _log_luminance_textures.resize(n + 1);
+        for (size_t i = 0; i <= n; ++i) {
+            _log_luminance_textures[i].SetDevice(_p_device);
+            _log_luminance_textures[i].SizeResources(1i64 << (n - i), 1i64 << (n - i));
+        }
+    }
+
     void Renderer::initScene() {
         _borders._min = { -20.0f, -10.0f, -20.0f };
         _borders._max = { 20.0f, 10.0f, 20.0f };
@@ -279,24 +300,7 @@ namespace rendering {
         GetClientRect(_hwnd, &winRect);
         LONG width = winRect.right - winRect.left;
         LONG height = winRect.bottom - winRect.top;
-        _viewport = { 0.0f, 0.0f, (FLOAT)(width), (FLOAT)(height), 0.0f, 1.0f };
-
-        // Setup projection
-        float near_z = 0.01f, far_z = 100.0f;
-        _projection = DirectX::XMMatrixPerspectiveFovLH(DirectX::XM_PIDIV2, width / (FLOAT)height, near_z, far_z);
-
-        _render_texture.SetDevice(_p_device);
-        _render_texture.SetWindow(winRect);
-
-        size_t n = (size_t)log2(min(width, height));
-        _square_copy.SetDevice(_p_device);
-        _square_copy.SizeResources(1i64 << n, 1i64 << n);
-
-        _log_luminance_textures.resize(n + 1);
-        for (size_t i = 0; i <= n; ++i) {
-            _log_luminance_textures[i].SetDevice(_p_device);
-            _log_luminance_textures[i].SizeResources(1i64 << (n - i), 1i64 << (n - i));
-        }
+        resizeResources(width, height);
 
         CD3D11_TEXTURE2D_DESC average_log_luminance_texture_desc(DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 1);
         average_log_luminance_texture_desc.MipLevels = 1;
@@ -493,20 +497,7 @@ namespace rendering {
 
             _p_device_context->OMSetRenderTargets(1, &_p_render_target_view, nullptr);
 
-            _viewport = { 0, 0, (FLOAT)width, (FLOAT)height, 0.0f, 1.0f };
-
-            float near_z = 0.01f, far_z = 100.0f;
-            _projection = DirectX::XMMatrixPerspectiveFovLH(DirectX::XM_PIDIV2, (FLOAT)width / (FLOAT)height, near_z, far_z);
-
-            _render_texture.SizeResources(width, height);
-
-            size_t n = (size_t)log2((double)min(width, height));
-            _square_copy.SizeResources(1i64 << n, 1i64 << n);
-            _log_luminance_textures.resize(n + 1);
-            for (size_t i = 0; i <= n; ++i) {
-                _log_luminance_textures[i].SetDevice(_p_device);
-                _log_luminance_textures[i].SizeResources(1i64 << (n - i), 1i64 << (n - i));
-            }
+            resizeResources(width, height);
         }
     }
 
