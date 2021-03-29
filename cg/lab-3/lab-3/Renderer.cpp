@@ -50,6 +50,34 @@ namespace {
         assert(SUCCEEDED(hr));
         return p_buffer;
     }
+
+    void renderTexture(ID3D11DeviceContext* p_device_context, ID3D11RenderTargetView** p_p_render_target_view, D3D11_VIEWPORT& viewport, ID3D11VertexShader* p_vertex_shader, ID3D11PixelShader* p_pixel_shader, ID3D11ShaderResourceView** p_p_shader_resource_view, ID3D11SamplerState** p_p_sampler_state, ID3D11Buffer** p_p_constant_buffer = nullptr, void* p_constant_buffer_data = nullptr) {
+        p_device_context->ClearRenderTargetView(*p_p_render_target_view, DirectX::Colors::Black.f);
+
+        p_device_context->RSSetViewports(1, &viewport);
+
+        p_device_context->OMSetRenderTargets(1, p_p_render_target_view, nullptr);
+
+        p_device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+        p_device_context->IASetInputLayout(nullptr);
+
+        p_device_context->VSSetShader(p_vertex_shader, nullptr, 0);
+        p_device_context->PSSetShader(p_pixel_shader, nullptr, 0);
+        
+        if (p_p_constant_buffer && p_constant_buffer_data) {
+            p_device_context->UpdateSubresource(*p_p_constant_buffer, 0, nullptr, p_constant_buffer_data, 0, 0);
+            p_device_context->PSSetConstantBuffers(0, 1, p_p_constant_buffer);
+        }
+
+        p_device_context->PSSetShaderResources(0, 1, p_p_shader_resource_view);
+        p_device_context->PSSetSamplers(0, 1, p_p_sampler_state);
+
+        p_device_context->Draw(4, 0);
+
+        const size_t MAX_NUM_SHADER_RESOURCE_VIEWS = 128;
+        ID3D11ShaderResourceView* null_shader_resource_views[MAX_NUM_SHADER_RESOURCE_VIEWS] = { nullptr };
+        p_device_context->PSSetShaderResources(0, MAX_NUM_SHADER_RESOURCE_VIEWS, null_shader_resource_views);
+    }
 }
 
 namespace rendering {
@@ -330,90 +358,40 @@ namespace rendering {
             _p_annotation->EndEvent();
         }
 
-        auto render_texture_shader_resource_view = _render_texture.GetShaderResourceView();
-        auto square_copy_render_target_view = _square_copy.GetRenderTargetView();
-
         {
-            _p_device_context->ClearRenderTargetView(square_copy_render_target_view, DirectX::Colors::Black.f);
+            auto render_texture_shader_resource_view = _render_texture.GetShaderResourceView();
+            auto square_copy_render_target_view = _square_copy.GetRenderTargetView();
 
             size_t n = _log_luminance_textures.size() - 1;
             D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << n), FLOAT(1 << n), 0, 1 };
-            _p_device_context->RSSetViewports(1, &vp);
 
-            _p_device_context->OMSetRenderTargets(1, &square_copy_render_target_view, nullptr);
-
-            _p_device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-            _p_device_context->IASetInputLayout(nullptr);
-
-            _p_device_context->VSSetShader(_p_vertex_shader_copy, nullptr, 0);
-            _p_device_context->PSSetShader(_p_pixel_shader_copy, nullptr, 0);
-            _p_device_context->PSSetShaderResources(0, 1, &render_texture_shader_resource_view);
-            _p_device_context->PSSetSamplers(0, 1, &_p_sampler_linear);
-
-            _p_device_context->Draw(4, 0);
-            _p_device_context->PSSetShaderResources(0, _s_MAX_NUM_SHADER_RESOURCE_VIEWS, _null_shader_resource_views);
+            renderTexture(_p_device_context, &square_copy_render_target_view, vp, _p_vertex_shader_copy, _p_pixel_shader_copy, &render_texture_shader_resource_view, &_p_sampler_linear);
         }
 
-        auto square_copy_shader_resource_view = _square_copy.GetShaderResourceView();
-        auto first_log_luminance_texture_render_target_view = _log_luminance_textures.front().GetRenderTargetView();
-
         {
-            _p_device_context->ClearRenderTargetView(first_log_luminance_texture_render_target_view, DirectX::Colors::Black.f);
+            auto square_copy_shader_resource_view = _square_copy.GetShaderResourceView();
+            auto first_log_luminance_texture_render_target_view = _log_luminance_textures.front().GetRenderTargetView();
 
             size_t n = _log_luminance_textures.size() - 1;
             D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << n), FLOAT(1 << n), 0, 1 };
-            _p_device_context->RSSetViewports(1, &vp);
 
-            _p_device_context->OMSetRenderTargets(1, &first_log_luminance_texture_render_target_view, nullptr);
-
-            _p_device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-            _p_device_context->IASetInputLayout(nullptr);
-
-            _p_device_context->VSSetShader(_p_vertex_shader_copy, nullptr, 0);
-            _p_device_context->PSSetShader(_p_pixel_shader_log_luminance, nullptr, 0);
-            _p_device_context->PSSetShaderResources(0, 1, &square_copy_shader_resource_view);
-            _p_device_context->PSSetSamplers(0, 1, &_p_sampler_linear);
-
-            _p_device_context->Draw(4, 0);
-            _p_device_context->PSSetShaderResources(0, _s_MAX_NUM_SHADER_RESOURCE_VIEWS, _null_shader_resource_views);
+            renderTexture(_p_device_context, &first_log_luminance_texture_render_target_view, vp, _p_vertex_shader_copy, _p_pixel_shader_log_luminance, &square_copy_shader_resource_view, &_p_sampler_linear);
         }
 
         {
             size_t n = _log_luminance_textures.size() - 1;
+
             for (size_t i = 1; i <= n; ++i) {
                 auto previous_log_luminance_texture_shader_resource_view = _log_luminance_textures[i - 1].GetShaderResourceView();
                 auto next_log_luminance_texture_render_target_view = _log_luminance_textures[i].GetRenderTargetView();
 
-                _p_device_context->ClearRenderTargetView(next_log_luminance_texture_render_target_view, DirectX::Colors::Black.f);
-
                 D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << (n - i)), FLOAT(1 << (n - i)), 0, 1 };
-                _p_device_context->RSSetViewports(1, &vp);
 
-                _p_device_context->OMSetRenderTargets(1, &next_log_luminance_texture_render_target_view, nullptr);
-
-                _p_device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-                _p_device_context->IASetInputLayout(nullptr);
-
-                _p_device_context->VSSetShader(_p_vertex_shader_copy, nullptr, 0);
-                _p_device_context->PSSetShader(_p_pixel_shader_copy, nullptr, 0);
-                _p_device_context->PSSetShaderResources(0, 1, &previous_log_luminance_texture_shader_resource_view);
-                _p_device_context->PSSetSamplers(0, 1, &_p_sampler_linear);
-
-                _p_device_context->Draw(4, 0);
-                _p_device_context->PSSetShaderResources(0, _s_MAX_NUM_SHADER_RESOURCE_VIEWS, _null_shader_resource_views);
+                renderTexture(_p_device_context, &next_log_luminance_texture_render_target_view, vp, _p_vertex_shader_copy, _p_pixel_shader_copy, &previous_log_luminance_texture_shader_resource_view, &_p_sampler_linear);
             }
         }
 
         {
-            _p_device_context->ClearRenderTargetView(_p_render_target_view, DirectX::Colors::Black.f);
-
-            _p_device_context->RSSetViewports(1, &_viewport);
-
-            _p_device_context->OMSetRenderTargets(1, &_p_render_target_view, nullptr);
-
-            _p_device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-            _p_device_context->IASetInputLayout(nullptr);
-
             D3D11_MAPPED_SUBRESOURCE average_log_luminance_mapped_subresource;
             _p_device_context->CopyResource(_average_log_luminance_texture, _log_luminance_textures.back().GetRenderTarget());
             _p_device_context->Map(_average_log_luminance_texture, 0, D3D11_MAP_READ, 0, &average_log_luminance_mapped_subresource);
@@ -428,16 +406,9 @@ namespace rendering {
             ConstantBuffer cb;
             cb._adapted_log_luminance = _adapted_log_luminance;
 
-            _p_device_context->UpdateSubresource(_p_constant_buffer, 0, nullptr, &cb, 0, 0);
+            auto render_texture_shader_resource_view = _render_texture.GetShaderResourceView();
 
-            _p_device_context->VSSetShader(_p_vertex_shader_copy, nullptr, 0);
-            _p_device_context->PSSetShader(_p_pixel_shader_tone_mapping, nullptr, 0);
-            _p_device_context->PSSetConstantBuffers(0, 1, &_p_constant_buffer);
-            _p_device_context->PSSetShaderResources(0, 1, &render_texture_shader_resource_view);
-            _p_device_context->PSSetSamplers(0, 1, &_p_sampler_linear);
-
-            _p_device_context->Draw(4, 0);
-            _p_device_context->PSSetShaderResources(0, _s_MAX_NUM_SHADER_RESOURCE_VIEWS, _null_shader_resource_views);
+            renderTexture(_p_device_context, &_p_render_target_view, _viewport, _p_vertex_shader_copy, _p_pixel_shader_tone_mapping, &render_texture_shader_resource_view, &_p_sampler_linear, &_p_constant_buffer, &cb);
 
             _p_swap_chain->Present(1, 0);
         }
