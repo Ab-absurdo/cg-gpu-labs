@@ -36,6 +36,7 @@ VsOut vsMain(VsIn input) {
 
     output._position_clip = mul(output._position_world, _view);
     output._position_clip = mul(output._position_clip, _projection);
+    output._tex = input._texture_local;
 
     return output;
 }
