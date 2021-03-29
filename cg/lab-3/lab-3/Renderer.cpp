@@ -578,8 +578,9 @@ namespace rendering {
 
     void Renderer::resize(WPARAM wParam, LPARAM lParam) {
         if (_swap_chain_ptr) {
-            size_t width = LOWORD(lParam);
-            size_t height = HIWORD(lParam);
+            const size_t REASONABLE_DEFAULT_MIN_SIZE = 8;
+            size_t width = max(REASONABLE_DEFAULT_MIN_SIZE, LOWORD(lParam));
+            size_t height = max(REASONABLE_DEFAULT_MIN_SIZE, HIWORD(lParam));
 
             _device_context_ptr->OMSetRenderTargets(0, 0, 0);
 
@@ -587,7 +588,7 @@ namespace rendering {
 
             _device_context_ptr->Flush();
 
-            HRESULT hr = _swap_chain_ptr->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
+            HRESULT hr = _swap_chain_ptr->ResizeBuffers(0, (UINT)width, (UINT)height, DXGI_FORMAT_UNKNOWN, 0);
             assert(SUCCEEDED(hr));
 
             std::string texture_name = "Texture";
@@ -617,6 +618,7 @@ namespace rendering {
             _square_copy.SizeResources(1i64 << n, 1i64 << n);
             _log_luminance_textures.resize(n + 1);
             for (size_t i = 0; i <= n; ++i) {
+                _log_luminance_textures[i].SetDevice(_device_ptr);
                 _log_luminance_textures[i].SizeResources(1i64 << (n - i), 1i64 << (n - i));
             }
         }
