@@ -7,8 +7,6 @@
 #include <chrono>
 #include <string>
 
-#include "DDSTextureLoader.h"
-
 #include "ConstantBuffer.h"
 #include "Keys.h"
 #include "SimpleVertex.h"
@@ -250,9 +248,6 @@ namespace rendering {
             assert(SUCCEEDED(hr));
         }
 
-        HRESULT hr = DirectX::CreateDDSTextureFromFileEx(_p_device, nullptr, L"../../lab-3/seafloor.dds", 0, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0, true, nullptr, &_p_texture_rv);
-        assert(SUCCEEDED(hr));
-
         D3D11_SAMPLER_DESC samp_desc;
         ZeroMemory(&samp_desc, sizeof(samp_desc));
         samp_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
@@ -262,7 +257,7 @@ namespace rendering {
         samp_desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
         samp_desc.MinLOD = 0;
         samp_desc.MaxLOD = D3D11_FLOAT32_MAX;
-        hr = _p_device->CreateSamplerState(&samp_desc, &_p_sampler_linear);
+        HRESULT hr = _p_device->CreateSamplerState(&samp_desc, &_p_sampler_linear);
         assert(SUCCEEDED(hr));
 
         {
@@ -346,8 +341,6 @@ namespace rendering {
             _p_device_context->VSSetConstantBuffers(0, 1, &_p_constant_buffer);
             _p_device_context->PSSetShader(_p_pixel_shader, nullptr, 0);
             _p_device_context->PSSetConstantBuffers(0, 1, &_p_constant_buffer);
-            _p_device_context->PSSetShaderResources(0, 1, &_p_texture_rv);
-            _p_device_context->PSSetSamplers(0, 1, &_p_sampler_linear);
 
             _p_annotation->BeginEvent(L"Draw");
             _p_device_context->DrawIndexed(_indices_number, 0, 0);
@@ -573,7 +566,6 @@ namespace rendering {
 
         _p_input_layout->Release();
 
-        _p_texture_rv->Release();
         _p_sampler_linear->Release();
 
         _average_log_luminance_texture->Release();

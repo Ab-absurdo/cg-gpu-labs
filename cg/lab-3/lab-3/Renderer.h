@@ -74,7 +74,6 @@ namespace rendering {
         ID3D11Buffer* _p_index_buffer = nullptr;
         ID3D11Buffer* _p_constant_buffer = nullptr;
 
-        ID3D11ShaderResourceView* _p_texture_rv = nullptr;
         ID3D11SamplerState* _p_sampler_linear = nullptr;
 
         ID3DUserDefinedAnnotation* _p_annotation = nullptr;

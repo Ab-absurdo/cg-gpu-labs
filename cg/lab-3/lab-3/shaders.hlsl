@@ -36,7 +36,6 @@ VsOut vsMain(VsIn input) {
 
     output._position_clip = mul(output._position_world, _view);
     output._position_clip = mul(output._position_clip, _projection);
-    output._tex = input._texture_local;
 
     return output;
 }
@@ -52,7 +51,7 @@ float4 psMain(VsOut input) : SV_TARGET {
         float dot_multiplier = pow(clamp(dot(light_dir / dist, input._normal_world), 0.0f, 1.0f), deg);
         color += dot_multiplier / att * _light_intensity[i] * _light_color[i];
     }
-    return _tx_diffuse.Sample(_sam_linear, input._tex) * color;
+    return color;
 }
 
 VsOut vsCopyMain(uint input : SV_VERTEXID) {

@@ -148,7 +148,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Camera.cpp" />
-    <ClCompile Include="DDSTextureLoader.cpp" />
     <ClCompile Include="Geometry.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="PointLight.cpp" />
@@ -175,7 +174,6 @@
   <ItemGroup>
     <ClInclude Include="Camera.h" />
     <ClInclude Include="ConstantBuffer.h" />
-    <ClInclude Include="DDSTextureLoader.h" />
     <ClInclude Include="Geometry.h" />
     <ClInclude Include="Keys.h" />
     <ClInclude Include="PointLight.h" />
