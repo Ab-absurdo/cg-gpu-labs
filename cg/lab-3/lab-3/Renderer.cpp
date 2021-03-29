@@ -40,6 +40,16 @@ namespace {
         assert(SUCCEEDED(hr));
         return p_pixel_shader;
     }
+
+    ID3D11Buffer* createBuffer(ID3D11Device* p_device, UINT byte_width, UINT bind_flags, const void* p_sys_mem) {
+        D3D11_BUFFER_DESC buffer_desc = CD3D11_BUFFER_DESC(byte_width, bind_flags);
+        D3D11_SUBRESOURCE_DATA initial_data = { 0 };
+        initial_data.pSysMem = p_sys_mem;
+        ID3D11Buffer* p_buffer;
+        HRESULT hr = p_device->CreateBuffer(&buffer_desc, p_sys_mem ? &initial_data : nullptr, &p_buffer);
+        assert(SUCCEEDED(hr));
+        return p_buffer;
+    }
 }
 
 namespace rendering {
@@ -178,7 +188,6 @@ namespace rendering {
     void Renderer::initInputLayout() {
         D3D11_INPUT_ELEMENT_DESC input_element_desc[] = {
           { "POS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-          /*{ "COL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },*/
           { "NOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
           { "TEX", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         };
@@ -203,50 +212,23 @@ namespace rendering {
         DirectX::XMVECTOR dir = DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
         _camera = Camera(pos, dir);
 
-        _ambient_light = DirectX::XMFLOAT4(0.1, 0.1, 0.1, 0);
+        _ambient_light = { 0.1f, 0.1f, 0.1f, 0 };
 
         size_t light_sources_number = 3;
         float r = 2.0f, h = 5.0f;
-        _lights[0]._pos = { 0.0f, -h, r, 0.0f };
+        _lights[0]._pos = { 0, -h, r, 0 };
         for (int i = 1; i < light_sources_number; i++) {
-            _lights[i]._pos = { r * sinf(i * DirectX::XM_2PI / light_sources_number), h, r * cosf(i * DirectX::XM_2PI / light_sources_number), 0.0f };
+            _lights[i]._pos = { r * sinf(i * DirectX::XM_2PI / light_sources_number), h, r * cosf(i * DirectX::XM_2PI / light_sources_number), 0 };
         }
         _lights[0]._color = (DirectX::XMFLOAT4)DirectX::Colors::Red;
         _lights[1]._color = (DirectX::XMFLOAT4)DirectX::Colors::Lime;
         _lights[2]._color = (DirectX::XMFLOAT4)DirectX::Colors::Blue;
 
-        {
-            D3D11_BUFFER_DESC vertex_buff_descr = {};
-            vertex_buff_descr.ByteWidth = sizeof(SimpleVertex) * sphere._n_vertices;
-            vertex_buff_descr.Usage = D3D11_USAGE_DEFAULT;
-            vertex_buff_descr.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-            D3D11_SUBRESOURCE_DATA sr_data = { 0 };
-            sr_data.pSysMem = vertices;
-            HRESULT hr = _p_device->CreateBuffer(&vertex_buff_descr, &sr_data, &_p_vertex_buffer);
-            assert(SUCCEEDED(hr));
-        }
+        _p_vertex_buffer = createBuffer(_p_device, sizeof(SimpleVertex) * sphere._n_vertices, D3D11_BIND_VERTEX_BUFFER, vertices);
 
-        {
-            D3D11_BUFFER_DESC index_buff_descr = {};
-            index_buff_descr.ByteWidth = sizeof(WORD) * _indices_number;
-            index_buff_descr.Usage = D3D11_USAGE_DEFAULT;
-            index_buff_descr.BindFlags = D3D11_BIND_INDEX_BUFFER;
-            index_buff_descr.CPUAccessFlags = 0;
-            D3D11_SUBRESOURCE_DATA sr_data = { 0 };
-            sr_data.pSysMem = indices;
-            HRESULT hr = _p_device->CreateBuffer(&index_buff_descr, &sr_data, &_p_index_buffer);
-            assert(SUCCEEDED(hr));
-        }
+        _p_index_buffer = createBuffer(_p_device, sizeof(WORD) * _indices_number, D3D11_BIND_INDEX_BUFFER, indices);
 
-        {
-            D3D11_BUFFER_DESC constant_buff_descr = {};
-            constant_buff_descr.ByteWidth = sizeof(ConstantBuffer);
-            constant_buff_descr.Usage = D3D11_USAGE_DEFAULT;
-            constant_buff_descr.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-            constant_buff_descr.CPUAccessFlags = 0;
-            HRESULT hr = _p_device->CreateBuffer(&constant_buff_descr, nullptr, &_p_constant_buffer);
-            assert(SUCCEEDED(hr));
-        }
+        _p_constant_buffer = createBuffer(_p_device, sizeof(ConstantBuffer), D3D11_BIND_CONSTANT_BUFFER, nullptr);
 
         D3D11_SAMPLER_DESC samp_desc;
         ZeroMemory(&samp_desc, sizeof(samp_desc));
