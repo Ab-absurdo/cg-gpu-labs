@@ -8,9 +8,9 @@
 #include "RenderTexture.h"
 
 #include "Camera.h"
+#include "Geometry.h"
 #include "PointLight.h"
 #include "WorldBorders.h"
-#include "Geometry.h"
 
 namespace rendering {
     class Renderer {
@@ -34,24 +34,25 @@ namespace rendering {
 
         HWND _hwnd;
 
-        ID3D11Device* _device_ptr = nullptr;
-        ID3D11DeviceContext* _device_context_ptr = nullptr;
-        IDXGISwapChain* _swap_chain_ptr = nullptr;
-        ID3D11RenderTargetView* _render_target_view_ptr = nullptr;
+        ID3D11Device* _p_device = nullptr;
+        ID3D11DeviceContext* _p_device_context = nullptr;
+        IDXGISwapChain* _p_swap_chain = nullptr;
+        ID3D11RenderTargetView* _p_render_target_view = nullptr;
 
-        ID3D11Texture2D* _depth_stencil_ptr = nullptr;
-        ID3D11DepthStencilView* _depth_stencil_view_ptr = nullptr;
+        ID3D11Texture2D* _p_depth_stencil = nullptr;
+        ID3D11DepthStencilState* _p_depth_stencil_state = nullptr;
+        ID3D11DepthStencilView* _p_depth_stencil_view = nullptr;
 
-        ID3DBlob* _vs_blob_ptr = nullptr;
+        ID3DBlob* _p_vs_blob = nullptr;
 
-        ID3D11VertexShader* _vertex_shader_ptr = nullptr;
-        ID3D11PixelShader* _pixel_shader_ptr = nullptr;
-        ID3D11VertexShader* _vertex_shader_copy_ptr = nullptr;
-        ID3D11PixelShader* _pixel_shader_copy_ptr = nullptr;
-        ID3D11PixelShader* _pixel_shader_log_luminance_ptr = nullptr;
-        ID3D11PixelShader* _pixel_shader_tone_mapping_ptr = nullptr;
+        ID3D11VertexShader* _p_vertex_shader = nullptr;
+        ID3D11PixelShader* _p_pixel_shader = nullptr;
+        ID3D11VertexShader* _p_vertex_shader_copy = nullptr;
+        ID3D11PixelShader* _p_pixel_shader_copy = nullptr;
+        ID3D11PixelShader* _p_pixel_shader_log_luminance = nullptr;
+        ID3D11PixelShader* _p_pixel_shader_tone_mapping = nullptr;
 
-        ID3D11InputLayout* _input_layout_ptr = nullptr;
+        ID3D11InputLayout* _p_input_layout = nullptr;
 
         DirectX::XMMATRIX _world = DirectX::XMMatrixIdentity();
         DirectX::XMMATRIX _view = DirectX::XMMatrixIdentity();
@@ -69,12 +70,12 @@ namespace rendering {
 
         float _adapted_log_luminance = 0;
 
-        ID3D11Buffer* _vertex_buffer_ptr = nullptr;
-        ID3D11Buffer* _index_buffer_ptr = nullptr;
-        ID3D11Buffer* _constant_buffer_ptr = nullptr;
+        ID3D11Buffer* _p_vertex_buffer = nullptr;
+        ID3D11Buffer* _p_index_buffer = nullptr;
+        ID3D11Buffer* _p_constant_buffer = nullptr;
 
-        ID3D11ShaderResourceView* _texture_rv_ptr = nullptr;
-        ID3D11SamplerState* _sampler_linear_ptr = nullptr;
+        ID3D11ShaderResourceView* _p_texture_rv = nullptr;
+        ID3D11SamplerState* _p_sampler_linear = nullptr;
 
         ID3DUserDefinedAnnotation* _p_annotation = nullptr;
 
@@ -86,6 +87,7 @@ namespace rendering {
 
         ID3D11Texture2D* _average_log_luminance_texture = nullptr;
 
-        ID3D11ShaderResourceView* const _null[128] = { nullptr };
+        static const size_t _s_MAX_NUM_SHADER_RESOURCE_VIEWS = 128;
+        ID3D11ShaderResourceView* const _null_shader_resource_views[_s_MAX_NUM_SHADER_RESOURCE_VIEWS] = { nullptr };
     };
 }

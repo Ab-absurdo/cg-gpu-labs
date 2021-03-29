@@ -23,16 +23,16 @@ namespace rendering {
     }
 
     void Renderer::initWindow(HINSTANCE h_instance, WNDPROC window_proc, int n_cmd_show) {
-        const wchar_t class_name[] = L"Sample Window Class";
+        const wchar_t CLASS_NAME[] = L"Sample Window Class";
 
         WNDCLASS wc = {};
         wc.lpfnWndProc = window_proc;
         wc.hInstance = h_instance;
-        wc.lpszClassName = class_name;
+        wc.lpszClassName = CLASS_NAME;
 
         RegisterClass(&wc);
 
-        _hwnd = CreateWindowEx(0, class_name, L"Computer Graphics: lab3", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, nullptr, nullptr, h_instance, nullptr);
+        _hwnd = CreateWindowEx(0, CLASS_NAME, L"Computer Graphics: lab3", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, nullptr, nullptr, h_instance, nullptr);
         assert(!(_hwnd == nullptr));
 
         ShowWindow(_hwnd, n_cmd_show);
@@ -64,17 +64,17 @@ namespace rendering {
             }
         }
 
-        DXGI_SWAP_CHAIN_DESC swap_chain_descr = { 0 };
-        swap_chain_descr.BufferDesc.RefreshRate.Numerator = 0;
-        swap_chain_descr.BufferDesc.RefreshRate.Denominator = 1;
-        swap_chain_descr.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        swap_chain_descr.SampleDesc.Count = 1;
-        swap_chain_descr.SampleDesc.Quality = 0;
-        swap_chain_descr.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-        swap_chain_descr.BufferCount = 2;
-        swap_chain_descr.OutputWindow = _hwnd;
-        swap_chain_descr.Windowed = true;
-        swap_chain_descr.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+        DXGI_SWAP_CHAIN_DESC swap_chain_desc = { 0 };
+        swap_chain_desc.BufferDesc.RefreshRate.Numerator = 0;
+        swap_chain_desc.BufferDesc.RefreshRate.Denominator = 1;
+        swap_chain_desc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        swap_chain_desc.SampleDesc.Count = 1;
+        swap_chain_desc.SampleDesc.Quality = 0;
+        swap_chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+        swap_chain_desc.BufferCount = 2;
+        swap_chain_desc.OutputWindow = _hwnd;
+        swap_chain_desc.Windowed = true;
+        swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 
         D3D_FEATURE_LEVEL feature_level;
         UINT flags = D3D11_CREATE_DEVICE_SINGLETHREADED;
@@ -82,52 +82,51 @@ namespace rendering {
         flags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
-        hr = D3D11CreateDeviceAndSwapChain(best_p_adapter, D3D_DRIVER_TYPE_UNKNOWN, nullptr, flags, nullptr, 0, D3D11_SDK_VERSION, &swap_chain_descr, &_swap_chain_ptr, &_device_ptr, &feature_level, &_device_context_ptr);
-        assert(S_OK == hr && _swap_chain_ptr && _device_ptr && _device_context_ptr);
-
-        ID3D11Texture2D* framebuffer;
-        hr = _swap_chain_ptr->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&framebuffer);
+        hr = D3D11CreateDeviceAndSwapChain(best_p_adapter, D3D_DRIVER_TYPE_UNKNOWN, nullptr, flags, nullptr, 0, D3D11_SDK_VERSION, &swap_chain_desc, &_p_swap_chain, &_p_device, &feature_level, &_p_device_context);
         assert(SUCCEEDED(hr));
 
-        hr = _device_ptr->CreateRenderTargetView(framebuffer, 0, &_render_target_view_ptr);
+        ID3D11Texture2D* p_framebuffer;
+        hr = _p_swap_chain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)(&p_framebuffer));
         assert(SUCCEEDED(hr));
-        framebuffer->Release();
+
+        hr = _p_device->CreateRenderTargetView(p_framebuffer, 0, &_p_render_target_view);
+        assert(SUCCEEDED(hr));
+        p_framebuffer->Release();
     }
 
-    void Renderer::initDepthStencil()
-    {
+    void Renderer::initDepthStencil() {
         RECT rc;
         GetClientRect(_hwnd, &rc);
         UINT width = rc.right - rc.left;
         UINT height = rc.bottom - rc.top;
 
         // Create depth stencil texture
-        D3D11_TEXTURE2D_DESC descDepth;
-        ZeroMemory(&descDepth, sizeof(descDepth));
-        descDepth.Width = width;
-        descDepth.Height = height;
-        descDepth.MipLevels = 1;
-        descDepth.ArraySize = 1;
-        descDepth.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-        descDepth.SampleDesc.Count = 1;
-        descDepth.SampleDesc.Quality = 0;
-        descDepth.Usage = D3D11_USAGE_DEFAULT;
-        descDepth.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-        descDepth.CPUAccessFlags = 0;
-        descDepth.MiscFlags = 0;
-        HRESULT hr = _device_ptr->CreateTexture2D(&descDepth, nullptr, &_depth_stencil_ptr);
+        D3D11_TEXTURE2D_DESC depth_desc;
+        ZeroMemory(&depth_desc, sizeof(depth_desc));
+        depth_desc.Width = width;
+        depth_desc.Height = height;
+        depth_desc.MipLevels = 1;
+        depth_desc.ArraySize = 1;
+        depth_desc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        depth_desc.SampleDesc.Count = 1;
+        depth_desc.SampleDesc.Quality = 0;
+        depth_desc.Usage = D3D11_USAGE_DEFAULT;
+        depth_desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+        depth_desc.CPUAccessFlags = 0;
+        depth_desc.MiscFlags = 0;
+        HRESULT hr = _p_device->CreateTexture2D(&depth_desc, nullptr, &_p_depth_stencil);
         assert(SUCCEEDED(hr));
 
         // Create the depth stencil view
         D3D11_DEPTH_STENCIL_VIEW_DESC descDSV;
         ZeroMemory(&descDSV, sizeof(descDSV));
-        descDSV.Format = descDepth.Format;
+        descDSV.Format = depth_desc.Format;
         descDSV.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
         descDSV.Texture2D.MipSlice = 0;
-        hr = _device_ptr->CreateDepthStencilView(_depth_stencil_ptr, &descDSV, &_depth_stencil_view_ptr);
+        hr = _p_device->CreateDepthStencilView(_p_depth_stencil, &descDSV, &_p_depth_stencil_view);
         assert(SUCCEEDED(hr));
 
-        _device_context_ptr->OMSetRenderTargets(1, &_render_target_view_ptr, _depth_stencil_view_ptr);
+        _p_device_context->OMSetRenderTargets(1, &_p_render_target_view, _p_depth_stencil_view);
     }
 
     void Renderer::initShaders() {
@@ -136,99 +135,99 @@ namespace rendering {
         flags |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 #endif
 
-        ID3DBlob* error_blob_ptr = nullptr;
-        HRESULT hr = D3DCompileFromFile(L"../../lab-3/shaders.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "vsMain", "vs_5_0", flags, 0, &_vs_blob_ptr, &error_blob_ptr);
+        ID3DBlob* p_error_blob = nullptr;
+        HRESULT hr = D3DCompileFromFile(L"../../lab-3/shaders.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "vsMain", "vs_5_0", flags, 0, &_p_vs_blob, &p_error_blob);
         if (FAILED(hr)) {
-            if (error_blob_ptr) {
-                OutputDebugStringA((char*)error_blob_ptr->GetBufferPointer());
-                error_blob_ptr->Release();
+            if (p_error_blob) {
+                OutputDebugStringA((char*)p_error_blob->GetBufferPointer());
+                p_error_blob->Release();
             }
-            if (_vs_blob_ptr) {
-                _vs_blob_ptr->Release();
+            if (_p_vs_blob) {
+                _p_vs_blob->Release();
             }
             assert(false);
         }
 
-        ID3DBlob* ps_blob_ptr = nullptr;
-        hr = D3DCompileFromFile(L"../../lab-3/shaders.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "psMain", "ps_5_0", flags, 0, &ps_blob_ptr, &error_blob_ptr);
+        ID3DBlob* p_ps_blob = nullptr;
+        hr = D3DCompileFromFile(L"../../lab-3/shaders.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "psMain", "ps_5_0", flags, 0, &p_ps_blob, &p_error_blob);
         if (FAILED(hr)) {
-            if (error_blob_ptr) {
-                OutputDebugStringA((char*)error_blob_ptr->GetBufferPointer());
-                error_blob_ptr->Release();
+            if (p_error_blob) {
+                OutputDebugStringA((char*)p_error_blob->GetBufferPointer());
+                p_error_blob->Release();
             }
-            if (ps_blob_ptr) {
-                ps_blob_ptr->Release();
+            if (p_ps_blob) {
+                p_ps_blob->Release();
             }
             assert(false);
         }
 
-        ID3DBlob* vs_copy_blob_ptr = nullptr, * ps_copy_blob_ptr = nullptr, * copy_error_blob_ptr = nullptr;
-        hr = D3DCompileFromFile(L"../../lab-3/shaders.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "vsCopyMain", "vs_5_0", flags, 0, &vs_copy_blob_ptr, &copy_error_blob_ptr);
+        ID3DBlob* p_vs_copy_blob = nullptr, * p_ps_copy_blob = nullptr, * p_copy_error_blob = nullptr;
+        hr = D3DCompileFromFile(L"../../lab-3/shaders.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "vsCopyMain", "vs_5_0", flags, 0, &p_vs_copy_blob, &p_copy_error_blob);
         if (FAILED(hr)) {
-            if (copy_error_blob_ptr) {
-                OutputDebugStringA((char*)copy_error_blob_ptr->GetBufferPointer());
-                copy_error_blob_ptr->Release();
+            if (p_copy_error_blob) {
+                OutputDebugStringA((char*)p_copy_error_blob->GetBufferPointer());
+                p_copy_error_blob->Release();
             }
-            if (vs_copy_blob_ptr) {
-                vs_copy_blob_ptr->Release();
+            if (p_vs_copy_blob) {
+                p_vs_copy_blob->Release();
             }
             assert(false);
         }
 
-        hr = D3DCompileFromFile(L"../../lab-3/shaders.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "psCopyMain", "ps_5_0", flags, 0, &ps_copy_blob_ptr, &copy_error_blob_ptr);
+        hr = D3DCompileFromFile(L"../../lab-3/shaders.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "psCopyMain", "ps_5_0", flags, 0, &p_ps_copy_blob, &p_copy_error_blob);
         if (FAILED(hr)) {
-            if (copy_error_blob_ptr) {
-                OutputDebugStringA((char*)copy_error_blob_ptr->GetBufferPointer());
-                copy_error_blob_ptr->Release();
+            if (p_copy_error_blob) {
+                OutputDebugStringA((char*)p_copy_error_blob->GetBufferPointer());
+                p_copy_error_blob->Release();
             }
-            if (ps_copy_blob_ptr) {
-                ps_copy_blob_ptr->Release();
+            if (p_ps_copy_blob) {
+                p_ps_copy_blob->Release();
             }
             assert(false);
         }
 
-        ID3DBlob* ps_log_luminance_blob_ptr = nullptr, * log_luminance_error_blob_ptr = nullptr;
-        hr = D3DCompileFromFile(L"../../lab-3/shaders.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "psLogLuminanceMain", "ps_5_0", flags, 0, &ps_log_luminance_blob_ptr, &log_luminance_error_blob_ptr);
+        ID3DBlob* p_ps_log_luminance_blob = nullptr, * p_ps_log_luminance_error_blob = nullptr;
+        hr = D3DCompileFromFile(L"../../lab-3/shaders.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "psLogLuminanceMain", "ps_5_0", flags, 0, &p_ps_log_luminance_blob, &p_ps_log_luminance_error_blob);
         if (FAILED(hr)) {
-            if (log_luminance_error_blob_ptr) {
-                OutputDebugStringA((char*)log_luminance_error_blob_ptr->GetBufferPointer());
-                log_luminance_error_blob_ptr->Release();
+            if (p_ps_log_luminance_error_blob) {
+                OutputDebugStringA((char*)p_ps_log_luminance_error_blob->GetBufferPointer());
+                p_ps_log_luminance_error_blob->Release();
             }
-            if (ps_log_luminance_blob_ptr) {
-                ps_log_luminance_blob_ptr->Release();
+            if (p_ps_log_luminance_blob) {
+                p_ps_log_luminance_blob->Release();
             }
             assert(false);
         }
 
-        ID3DBlob* ps_tone_mapping_blob_ptr = nullptr, * tone_mapping_error_blob_ptr = nullptr;
-        hr = D3DCompileFromFile(L"../../lab-3/shaders.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "psToneMappingMain", "ps_5_0", flags, 0, &ps_tone_mapping_blob_ptr, &tone_mapping_error_blob_ptr);
+        ID3DBlob* p_ps_tone_mapping_blob = nullptr, * p_ps_tone_mapping_error_blob = nullptr;
+        hr = D3DCompileFromFile(L"../../lab-3/shaders.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "psToneMappingMain", "ps_5_0", flags, 0, &p_ps_tone_mapping_blob, &p_ps_tone_mapping_error_blob);
         if (FAILED(hr)) {
-            if (tone_mapping_error_blob_ptr) {
-                OutputDebugStringA((char*)tone_mapping_error_blob_ptr->GetBufferPointer());
-                tone_mapping_error_blob_ptr->Release();
+            if (p_ps_tone_mapping_error_blob) {
+                OutputDebugStringA((char*)p_ps_tone_mapping_error_blob->GetBufferPointer());
+                p_ps_tone_mapping_error_blob->Release();
             }
-            if (ps_tone_mapping_blob_ptr) {
-                ps_tone_mapping_blob_ptr->Release();
+            if (p_ps_tone_mapping_blob) {
+                p_ps_tone_mapping_blob->Release();
             }
             assert(false);
         }
 
-        hr = _device_ptr->CreateVertexShader(_vs_blob_ptr->GetBufferPointer(), _vs_blob_ptr->GetBufferSize(), nullptr, &_vertex_shader_ptr);
+        hr = _p_device->CreateVertexShader(_p_vs_blob->GetBufferPointer(), _p_vs_blob->GetBufferSize(), nullptr, &_p_vertex_shader);
         assert(SUCCEEDED(hr));
 
-        hr = _device_ptr->CreatePixelShader(ps_blob_ptr->GetBufferPointer(), ps_blob_ptr->GetBufferSize(), nullptr, &_pixel_shader_ptr);
+        hr = _p_device->CreatePixelShader(p_ps_blob->GetBufferPointer(), p_ps_blob->GetBufferSize(), nullptr, &_p_pixel_shader);
         assert(SUCCEEDED(hr));
 
-        hr = _device_ptr->CreateVertexShader(vs_copy_blob_ptr->GetBufferPointer(), vs_copy_blob_ptr->GetBufferSize(), nullptr, &_vertex_shader_copy_ptr);
+        hr = _p_device->CreateVertexShader(p_vs_copy_blob->GetBufferPointer(), p_vs_copy_blob->GetBufferSize(), nullptr, &_p_vertex_shader_copy);
         assert(SUCCEEDED(hr));
 
-        hr = _device_ptr->CreatePixelShader(ps_copy_blob_ptr->GetBufferPointer(), ps_copy_blob_ptr->GetBufferSize(), nullptr, &_pixel_shader_copy_ptr);
+        hr = _p_device->CreatePixelShader(p_ps_copy_blob->GetBufferPointer(), p_ps_copy_blob->GetBufferSize(), nullptr, &_p_pixel_shader_copy);
         assert(SUCCEEDED(hr));
 
-        hr = _device_ptr->CreatePixelShader(ps_log_luminance_blob_ptr->GetBufferPointer(), ps_log_luminance_blob_ptr->GetBufferSize(), nullptr, &_pixel_shader_log_luminance_ptr);
+        hr = _p_device->CreatePixelShader(p_ps_log_luminance_blob->GetBufferPointer(), p_ps_log_luminance_blob->GetBufferSize(), nullptr, &_p_pixel_shader_log_luminance);
         assert(SUCCEEDED(hr));
 
-        hr = _device_ptr->CreatePixelShader(ps_tone_mapping_blob_ptr->GetBufferPointer(), ps_tone_mapping_blob_ptr->GetBufferSize(), nullptr, &_pixel_shader_tone_mapping_ptr);
+        hr = _p_device->CreatePixelShader(p_ps_tone_mapping_blob->GetBufferPointer(), p_ps_tone_mapping_blob->GetBufferSize(), nullptr, &_p_pixel_shader_tone_mapping);
         assert(SUCCEEDED(hr));
     }
 
@@ -240,7 +239,7 @@ namespace rendering {
           { "TEX", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         };
 
-        HRESULT hr = _device_ptr->CreateInputLayout(input_element_desc, ARRAYSIZE(input_element_desc), _vs_blob_ptr->GetBufferPointer(), _vs_blob_ptr->GetBufferSize(), &_input_layout_ptr);
+        HRESULT hr = _p_device->CreateInputLayout(input_element_desc, ARRAYSIZE(input_element_desc), _p_vs_blob->GetBufferPointer(), _p_vs_blob->GetBufferSize(), &_p_input_layout);
         assert(SUCCEEDED(hr));
     }
 
@@ -279,7 +278,7 @@ namespace rendering {
             vertex_buff_descr.BindFlags = D3D11_BIND_VERTEX_BUFFER;
             D3D11_SUBRESOURCE_DATA sr_data = { 0 };
             sr_data.pSysMem = vertices;
-            HRESULT hr = _device_ptr->CreateBuffer(&vertex_buff_descr, &sr_data, &_vertex_buffer_ptr);
+            HRESULT hr = _p_device->CreateBuffer(&vertex_buff_descr, &sr_data, &_p_vertex_buffer);
             assert(SUCCEEDED(hr));
         }
 
@@ -291,7 +290,7 @@ namespace rendering {
             index_buff_descr.CPUAccessFlags = 0;
             D3D11_SUBRESOURCE_DATA sr_data = { 0 };
             sr_data.pSysMem = indices;
-            HRESULT hr = _device_ptr->CreateBuffer(&index_buff_descr, &sr_data, &_index_buffer_ptr);
+            HRESULT hr = _p_device->CreateBuffer(&index_buff_descr, &sr_data, &_p_index_buffer);
             assert(SUCCEEDED(hr));
         }
 
@@ -301,11 +300,11 @@ namespace rendering {
             constant_buff_descr.Usage = D3D11_USAGE_DEFAULT;
             constant_buff_descr.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
             constant_buff_descr.CPUAccessFlags = 0;
-            HRESULT hr = _device_ptr->CreateBuffer(&constant_buff_descr, nullptr, &_constant_buffer_ptr);
+            HRESULT hr = _p_device->CreateBuffer(&constant_buff_descr, nullptr, &_p_constant_buffer);
             assert(SUCCEEDED(hr));
         }
 
-        HRESULT hr = DirectX::CreateDDSTextureFromFileEx(_device_ptr, nullptr, L"../../lab-3/seafloor.dds", 0, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0, true, nullptr, &_texture_rv_ptr);
+        HRESULT hr = DirectX::CreateDDSTextureFromFileEx(_p_device, nullptr, L"../../lab-3/seafloor.dds", 0, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0, true, nullptr, &_p_texture_rv);
         assert(SUCCEEDED(hr));
 
         D3D11_SAMPLER_DESC samp_desc;
@@ -317,11 +316,11 @@ namespace rendering {
         samp_desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
         samp_desc.MinLOD = 0;
         samp_desc.MaxLOD = D3D11_FLOAT32_MAX;
-        hr = _device_ptr->CreateSamplerState(&samp_desc, &_sampler_linear_ptr);
+        hr = _p_device->CreateSamplerState(&samp_desc, &_p_sampler_linear);
         assert(SUCCEEDED(hr));
 
         {
-            HRESULT hr_annotation = _device_context_ptr->QueryInterface(__uuidof(_p_annotation), reinterpret_cast<void**>(&_p_annotation));
+            HRESULT hr_annotation = _p_device_context->QueryInterface(__uuidof(_p_annotation), reinterpret_cast<void**>(&_p_annotation));
             assert(SUCCEEDED(hr_annotation));
         }
 
@@ -335,16 +334,16 @@ namespace rendering {
         float near_z = 0.01f, far_z = 100.0f;
         _projection = DirectX::XMMatrixPerspectiveFovLH(DirectX::XM_PIDIV2, width / (FLOAT)height, near_z, far_z);
 
-        _render_texture.SetDevice(_device_ptr);
+        _render_texture.SetDevice(_p_device);
         _render_texture.SetWindow(winRect);
 
         size_t n = (size_t)log2(min(width, height));
-        _square_copy.SetDevice(_device_ptr);
+        _square_copy.SetDevice(_p_device);
         _square_copy.SizeResources(1i64 << n, 1i64 << n);
 
         _log_luminance_textures.resize(n + 1);
         for (size_t i = 0; i <= n; ++i) {
-            _log_luminance_textures[i].SetDevice(_device_ptr);
+            _log_luminance_textures[i].SetDevice(_p_device);
             _log_luminance_textures[i].SizeResources(1i64 << (n - i), 1i64 << (n - i));
         }
 
@@ -354,7 +353,7 @@ namespace rendering {
         average_log_luminance_texture_desc.Usage = D3D11_USAGE_STAGING;
         average_log_luminance_texture_desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
 
-        hr = _device_ptr->CreateTexture2D(&average_log_luminance_texture_desc, nullptr, &_average_log_luminance_texture);
+        hr = _p_device->CreateTexture2D(&average_log_luminance_texture_desc, nullptr, &_average_log_luminance_texture);
         assert(SUCCEEDED(hr));
     }
 
@@ -365,16 +364,16 @@ namespace rendering {
             _p_annotation->BeginEvent(L"Rendering start");
 
             auto render_texture_render_target_view = _render_texture.GetRenderTargetView();
-            _device_context_ptr->ClearRenderTargetView(render_texture_render_target_view, DirectX::Colors::Black.f);
+            _p_device_context->ClearRenderTargetView(render_texture_render_target_view, DirectX::Colors::Black.f);
 
-            _device_context_ptr->RSSetViewports(1, &_viewport);
+            _p_device_context->RSSetViewports(1, &_viewport);
 
-            _device_context_ptr->OMSetRenderTargets(1, &render_texture_render_target_view, nullptr);
+            _p_device_context->OMSetRenderTargets(1, &render_texture_render_target_view, nullptr);
 
-            _device_context_ptr->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-            _device_context_ptr->IASetInputLayout(_input_layout_ptr);
-            _device_context_ptr->IASetVertexBuffers(0, 1, &_vertex_buffer_ptr, &_vertex_stride, &_vertex_offset);
-            _device_context_ptr->IASetIndexBuffer(_index_buffer_ptr, DXGI_FORMAT_R16_UINT, 0);
+            _p_device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            _p_device_context->IASetInputLayout(_p_input_layout);
+            _p_device_context->IASetVertexBuffers(0, 1, &_p_vertex_buffer, &_vertex_stride, &_vertex_offset);
+            _p_device_context->IASetIndexBuffer(_p_index_buffer, DXGI_FORMAT_R16_UINT, 0);
 
             _p_annotation->EndEvent();
 
@@ -395,18 +394,18 @@ namespace rendering {
                 cb._light_attenuation[i] = att;
                 cb._light_intensity[4 * i] = _lights[i].getIntensity();
             }
-            _device_context_ptr->UpdateSubresource(_constant_buffer_ptr, 0, nullptr, &cb, 0, 0);
+            _p_device_context->UpdateSubresource(_p_constant_buffer, 0, nullptr, &cb, 0, 0);
 
-            _device_context_ptr->VSSetShader(_vertex_shader_ptr, nullptr, 0);
-            _device_context_ptr->VSSetConstantBuffers(0, 1, &_constant_buffer_ptr);
-            _device_context_ptr->PSSetShader(_pixel_shader_ptr, nullptr, 0);
-            _device_context_ptr->PSSetConstantBuffers(0, 1, &_constant_buffer_ptr);
-            _device_context_ptr->PSSetShaderResources(0, 1, &_texture_rv_ptr);
-            _device_context_ptr->PSSetSamplers(0, 1, &_sampler_linear_ptr);
+            _p_device_context->VSSetShader(_p_vertex_shader, nullptr, 0);
+            _p_device_context->VSSetConstantBuffers(0, 1, &_p_constant_buffer);
+            _p_device_context->PSSetShader(_p_pixel_shader, nullptr, 0);
+            _p_device_context->PSSetConstantBuffers(0, 1, &_p_constant_buffer);
+            _p_device_context->PSSetShaderResources(0, 1, &_p_texture_rv);
+            _p_device_context->PSSetSamplers(0, 1, &_p_sampler_linear);
 
             _p_annotation->BeginEvent(L"Draw");
-            _device_context_ptr->DrawIndexed(_indices_number, 0, 0);
-            _device_context_ptr->PSSetShaderResources(0, 128, _null);
+            _p_device_context->DrawIndexed(_indices_number, 0, 0);
+            _p_device_context->PSSetShaderResources(0, _s_MAX_NUM_SHADER_RESOURCE_VIEWS, _null_shader_resource_views);
             _p_annotation->EndEvent();
         }
 
@@ -414,48 +413,48 @@ namespace rendering {
         auto square_copy_render_target_view = _square_copy.GetRenderTargetView();
 
         {
-            _device_context_ptr->ClearRenderTargetView(square_copy_render_target_view, DirectX::Colors::Black.f);
+            _p_device_context->ClearRenderTargetView(square_copy_render_target_view, DirectX::Colors::Black.f);
 
             size_t n = _log_luminance_textures.size() - 1;
             D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << n), FLOAT(1 << n), 0, 1 };
-           _device_context_ptr->RSSetViewports(1, &vp);
+           _p_device_context->RSSetViewports(1, &vp);
 
-            _device_context_ptr->OMSetRenderTargets(1, &square_copy_render_target_view, nullptr);
+            _p_device_context->OMSetRenderTargets(1, &square_copy_render_target_view, nullptr);
 
-            _device_context_ptr->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-            _device_context_ptr->IASetInputLayout(nullptr);
+            _p_device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+            _p_device_context->IASetInputLayout(nullptr);
 
-            _device_context_ptr->VSSetShader(_vertex_shader_copy_ptr, nullptr, 0);
-            _device_context_ptr->PSSetShader(_pixel_shader_copy_ptr, nullptr, 0);
-            _device_context_ptr->PSSetShaderResources(0, 1, &render_texture_shader_resource_view);
-            _device_context_ptr->PSSetSamplers(0, 1, &_sampler_linear_ptr);
+            _p_device_context->VSSetShader(_p_vertex_shader_copy, nullptr, 0);
+            _p_device_context->PSSetShader(_p_pixel_shader_copy, nullptr, 0);
+            _p_device_context->PSSetShaderResources(0, 1, &render_texture_shader_resource_view);
+            _p_device_context->PSSetSamplers(0, 1, &_p_sampler_linear);
 
-            _device_context_ptr->Draw(4, 0);
-            _device_context_ptr->PSSetShaderResources(0, 128, _null);
+            _p_device_context->Draw(4, 0);
+            _p_device_context->PSSetShaderResources(0, _s_MAX_NUM_SHADER_RESOURCE_VIEWS, _null_shader_resource_views);
         }
 
         auto square_copy_shader_resource_view = _square_copy.GetShaderResourceView();
         auto first_log_luminance_texture_render_target_view = _log_luminance_textures.front().GetRenderTargetView();
 
         {
-            _device_context_ptr->ClearRenderTargetView(first_log_luminance_texture_render_target_view, DirectX::Colors::Black.f);
+            _p_device_context->ClearRenderTargetView(first_log_luminance_texture_render_target_view, DirectX::Colors::Black.f);
 
             size_t n = _log_luminance_textures.size() - 1;
             D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << n), FLOAT(1 << n), 0, 1 };
-            _device_context_ptr->RSSetViewports(1, &vp);
+            _p_device_context->RSSetViewports(1, &vp);
 
-            _device_context_ptr->OMSetRenderTargets(1, &first_log_luminance_texture_render_target_view, nullptr);
+            _p_device_context->OMSetRenderTargets(1, &first_log_luminance_texture_render_target_view, nullptr);
 
-            _device_context_ptr->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-            _device_context_ptr->IASetInputLayout(nullptr);
+            _p_device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+            _p_device_context->IASetInputLayout(nullptr);
 
-            _device_context_ptr->VSSetShader(_vertex_shader_copy_ptr, nullptr, 0);
-            _device_context_ptr->PSSetShader(_pixel_shader_log_luminance_ptr, nullptr, 0);
-            _device_context_ptr->PSSetShaderResources(0, 1, &square_copy_shader_resource_view);
-            _device_context_ptr->PSSetSamplers(0, 1, &_sampler_linear_ptr);
+            _p_device_context->VSSetShader(_p_vertex_shader_copy, nullptr, 0);
+            _p_device_context->PSSetShader(_p_pixel_shader_log_luminance, nullptr, 0);
+            _p_device_context->PSSetShaderResources(0, 1, &square_copy_shader_resource_view);
+            _p_device_context->PSSetSamplers(0, 1, &_p_sampler_linear);
 
-            _device_context_ptr->Draw(4, 0);
-            _device_context_ptr->PSSetShaderResources(0, 128, _null);
+            _p_device_context->Draw(4, 0);
+            _p_device_context->PSSetShaderResources(0, _s_MAX_NUM_SHADER_RESOURCE_VIEWS, _null_shader_resource_views);
         }
 
         {
@@ -464,41 +463,41 @@ namespace rendering {
                 auto previous_log_luminance_texture_shader_resource_view = _log_luminance_textures[i - 1].GetShaderResourceView();
                 auto next_log_luminance_texture_render_target_view = _log_luminance_textures[i].GetRenderTargetView();
 
-                _device_context_ptr->ClearRenderTargetView(next_log_luminance_texture_render_target_view, DirectX::Colors::Black.f);
+                _p_device_context->ClearRenderTargetView(next_log_luminance_texture_render_target_view, DirectX::Colors::Black.f);
 
                 D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << (n - i)), FLOAT(1 << (n - i)), 0, 1 };
-                _device_context_ptr->RSSetViewports(1, &vp);
+                _p_device_context->RSSetViewports(1, &vp);
 
-                _device_context_ptr->OMSetRenderTargets(1, &next_log_luminance_texture_render_target_view, nullptr);
+                _p_device_context->OMSetRenderTargets(1, &next_log_luminance_texture_render_target_view, nullptr);
 
-                _device_context_ptr->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-                _device_context_ptr->IASetInputLayout(nullptr);
+                _p_device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+                _p_device_context->IASetInputLayout(nullptr);
 
-                _device_context_ptr->VSSetShader(_vertex_shader_copy_ptr, nullptr, 0);
-                _device_context_ptr->PSSetShader(_pixel_shader_copy_ptr, nullptr, 0);
-                _device_context_ptr->PSSetShaderResources(0, 1, &previous_log_luminance_texture_shader_resource_view);
-                _device_context_ptr->PSSetSamplers(0, 1, &_sampler_linear_ptr);
+                _p_device_context->VSSetShader(_p_vertex_shader_copy, nullptr, 0);
+                _p_device_context->PSSetShader(_p_pixel_shader_copy, nullptr, 0);
+                _p_device_context->PSSetShaderResources(0, 1, &previous_log_luminance_texture_shader_resource_view);
+                _p_device_context->PSSetSamplers(0, 1, &_p_sampler_linear);
 
-                _device_context_ptr->Draw(4, 0);
-                _device_context_ptr->PSSetShaderResources(0, 128, _null);
+                _p_device_context->Draw(4, 0);
+                _p_device_context->PSSetShaderResources(0, _s_MAX_NUM_SHADER_RESOURCE_VIEWS, _null_shader_resource_views);
             }
         }
 
         {
-            _device_context_ptr->ClearRenderTargetView(_render_target_view_ptr, DirectX::Colors::Black.f);
+            _p_device_context->ClearRenderTargetView(_p_render_target_view, DirectX::Colors::Black.f);
 
-            _device_context_ptr->RSSetViewports(1, &_viewport);
+            _p_device_context->RSSetViewports(1, &_viewport);
 
-            _device_context_ptr->OMSetRenderTargets(1, &_render_target_view_ptr, nullptr);
+            _p_device_context->OMSetRenderTargets(1, &_p_render_target_view, nullptr);
 
-            _device_context_ptr->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-            _device_context_ptr->IASetInputLayout(nullptr);
+            _p_device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+            _p_device_context->IASetInputLayout(nullptr);
 
             D3D11_MAPPED_SUBRESOURCE average_log_luminance_mapped_subresource;
-            _device_context_ptr->CopyResource(_average_log_luminance_texture, _log_luminance_textures.back().GetRenderTarget());
-            _device_context_ptr->Map(_average_log_luminance_texture, 0, D3D11_MAP_READ, 0, &average_log_luminance_mapped_subresource);
+            _p_device_context->CopyResource(_average_log_luminance_texture, _log_luminance_textures.back().GetRenderTarget());
+            _p_device_context->Map(_average_log_luminance_texture, 0, D3D11_MAP_READ, 0, &average_log_luminance_mapped_subresource);
             float average_log_luminance = ((float*)average_log_luminance_mapped_subresource.pData)[0];
-            _device_context_ptr->Unmap(_average_log_luminance_texture, 0);
+            _p_device_context->Unmap(_average_log_luminance_texture, 0);
 
             auto end = std::chrono::high_resolution_clock::now();
             float delta_t = std::chrono::duration<float>(end - start).count();
@@ -508,18 +507,18 @@ namespace rendering {
             ConstantBuffer cb;
             cb._adapted_log_luminance = _adapted_log_luminance;
 
-            _device_context_ptr->UpdateSubresource(_constant_buffer_ptr, 0, nullptr, &cb, 0, 0);
+            _p_device_context->UpdateSubresource(_p_constant_buffer, 0, nullptr, &cb, 0, 0);
 
-            _device_context_ptr->VSSetShader(_vertex_shader_copy_ptr, nullptr, 0);
-            _device_context_ptr->PSSetShader(_pixel_shader_tone_mapping_ptr, nullptr, 0);
-            _device_context_ptr->PSSetConstantBuffers(0, 1, &_constant_buffer_ptr);
-            _device_context_ptr->PSSetShaderResources(0, 1, &render_texture_shader_resource_view);
-            _device_context_ptr->PSSetSamplers(0, 1, &_sampler_linear_ptr);
+            _p_device_context->VSSetShader(_p_vertex_shader_copy, nullptr, 0);
+            _p_device_context->PSSetShader(_p_pixel_shader_tone_mapping, nullptr, 0);
+            _p_device_context->PSSetConstantBuffers(0, 1, &_p_constant_buffer);
+            _p_device_context->PSSetShaderResources(0, 1, &render_texture_shader_resource_view);
+            _p_device_context->PSSetSamplers(0, 1, &_p_sampler_linear);
 
-            _device_context_ptr->Draw(4, 0);
-            _device_context_ptr->PSSetShaderResources(0, 128, _null);
+            _p_device_context->Draw(4, 0);
+            _p_device_context->PSSetShaderResources(0, _s_MAX_NUM_SHADER_RESOURCE_VIEWS, _null_shader_resource_views);
 
-            _swap_chain_ptr->Present(1, 0);
+            _p_swap_chain->Present(1, 0);
         }
     }
 
@@ -572,35 +571,35 @@ namespace rendering {
     }
 
     void Renderer::resize(size_t width, size_t height) {
-        if (_swap_chain_ptr) {
+        if (_p_swap_chain) {
             const size_t REASONABLE_DEFAULT_MIN_SIZE = 8;
             width = max(REASONABLE_DEFAULT_MIN_SIZE, width);
             height = max(REASONABLE_DEFAULT_MIN_SIZE, height);
 
-            _device_context_ptr->OMSetRenderTargets(0, 0, 0);
+            _p_device_context->OMSetRenderTargets(0, 0, 0);
 
-            _render_target_view_ptr->Release();
+            _p_render_target_view->Release();
 
-            _device_context_ptr->Flush();
+            _p_device_context->Flush();
 
-            HRESULT hr = _swap_chain_ptr->ResizeBuffers(0, (UINT)width, (UINT)height, DXGI_FORMAT_UNKNOWN, 0);
+            HRESULT hr = _p_swap_chain->ResizeBuffers(0, (UINT)width, (UINT)height, DXGI_FORMAT_UNKNOWN, 0);
             assert(SUCCEEDED(hr));
 
             std::string texture_name = "Texture";
 
             ID3D11Texture2D* p_buffer;
 
-            hr = _swap_chain_ptr->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&p_buffer);
+            hr = _p_swap_chain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&p_buffer);
             assert(SUCCEEDED(hr));
 
             p_buffer->SetPrivateData(WKPDID_D3DDebugObjectName, (UINT)texture_name.size(), texture_name.c_str());
 
-            hr = _device_ptr->CreateRenderTargetView(p_buffer, nullptr, &_render_target_view_ptr);
+            hr = _p_device->CreateRenderTargetView(p_buffer, nullptr, &_p_render_target_view);
             assert(SUCCEEDED(hr));
 
             p_buffer->Release();
 
-            _device_context_ptr->OMSetRenderTargets(1, &_render_target_view_ptr, nullptr);
+            _p_device_context->OMSetRenderTargets(1, &_p_render_target_view, nullptr);
 
             _viewport = { 0, 0, (FLOAT)width, (FLOAT)height, 0.0f, 1.0f };
 
@@ -613,40 +612,40 @@ namespace rendering {
             _square_copy.SizeResources(1i64 << n, 1i64 << n);
             _log_luminance_textures.resize(n + 1);
             for (size_t i = 0; i <= n; ++i) {
-                _log_luminance_textures[i].SetDevice(_device_ptr);
+                _log_luminance_textures[i].SetDevice(_p_device);
                 _log_luminance_textures[i].SizeResources(1i64 << (n - i), 1i64 << (n - i));
             }
         }
     }
 
     Renderer::~Renderer() {
-        _device_context_ptr->ClearState();
+        _p_device_context->ClearState();
 
-        _constant_buffer_ptr->Release();
-        _vertex_buffer_ptr->Release();
-        _index_buffer_ptr->Release();
+        _p_constant_buffer->Release();
+        _p_vertex_buffer->Release();
+        _p_index_buffer->Release();
 
-        _input_layout_ptr->Release();
+        _p_input_layout->Release();
 
-        _texture_rv_ptr->Release();
-        _sampler_linear_ptr->Release();
+        _p_texture_rv->Release();
+        _p_sampler_linear->Release();
 
         _average_log_luminance_texture->Release();
 
-        _vertex_shader_ptr->Release();
-        _vertex_shader_copy_ptr->Release();
-        _pixel_shader_ptr->Release();
-        _pixel_shader_copy_ptr->Release();
-        _pixel_shader_log_luminance_ptr->Release();
-        _pixel_shader_tone_mapping_ptr->Release();
+        _p_vertex_shader->Release();
+        _p_vertex_shader_copy->Release();
+        _p_pixel_shader->Release();
+        _p_pixel_shader_copy->Release();
+        _p_pixel_shader_log_luminance->Release();
+        _p_pixel_shader_tone_mapping->Release();
 
-        _depth_stencil_ptr->Release();
-        _depth_stencil_view_ptr->Release();
+        _p_depth_stencil->Release();
+        _p_depth_stencil_view->Release();
 
-        _render_target_view_ptr->Release();
-        _swap_chain_ptr->Release();
-        _device_context_ptr->Release();
-        _device_ptr->Release();
+        _p_render_target_view->Release();
+        _p_swap_chain->Release();
+        _p_device_context->Release();
+        _p_device->Release();
 
         _p_annotation->Release();
     }
