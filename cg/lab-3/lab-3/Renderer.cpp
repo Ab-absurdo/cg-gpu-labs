@@ -565,22 +565,17 @@ namespace rendering {
         }
     }
 
-    void Renderer::handleMouse(const POINT& cursor) {
+    void Renderer::handleMouse(int dx, int dy) {
         float mouse_sence = 5e-3f;
-        POINT current_pos;
-        GetCursorPos(&current_pos);
-        int dx = current_pos.x - cursor.x;
-        int dy = current_pos.y - cursor.y;
-        SetCursorPos(cursor.x, cursor.y);
         _camera.rotateHorisontal(dx * mouse_sence);
         _camera.rotateVertical(dy * mouse_sence);
     }
 
-    void Renderer::resize(WPARAM wParam, LPARAM lParam) {
+    void Renderer::resize(size_t width, size_t height) {
         if (_swap_chain_ptr) {
             const size_t REASONABLE_DEFAULT_MIN_SIZE = 8;
-            size_t width = max(REASONABLE_DEFAULT_MIN_SIZE, LOWORD(lParam));
-            size_t height = max(REASONABLE_DEFAULT_MIN_SIZE, HIWORD(lParam));
+            width = max(REASONABLE_DEFAULT_MIN_SIZE, width);
+            height = max(REASONABLE_DEFAULT_MIN_SIZE, height);
 
             _device_context_ptr->OMSetRenderTargets(0, 0, 0);
 

@@ -18,8 +18,8 @@ namespace rendering {
         void init(HINSTANCE h_instance, WNDPROC window_proc, int n_cmd_show);
         void render();
         void handleKey(WPARAM wParam, LPARAM lParam);
-        void handleMouse(const POINT& cursor);
-        void resize(WPARAM wParam, LPARAM lParam);
+        void handleMouse(int dx, int dy);
+        void resize(size_t width, size_t height);
 
         ~Renderer();
 

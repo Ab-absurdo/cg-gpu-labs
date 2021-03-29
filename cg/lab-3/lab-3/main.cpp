@@ -1,72 +1,74 @@
 #include "Renderer.h"
 
-rendering::Renderer renderer;
+rendering::Renderer g_renderer;
 
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT u_msg, WPARAM w_param, LPARAM l_param);
+LRESULT CALLBACK windowProc(HWND hwnd, UINT u_msg, WPARAM w_param, LPARAM l_param);
 
-int WINAPI wWinMain(HINSTANCE h_instance, HINSTANCE h_prev_instance, PWSTR p_cmd_line, int n_cmd_show)
-{
-    renderer.init(h_instance, WindowProc, n_cmd_show);
+int WINAPI wWinMain(HINSTANCE h_instance, HINSTANCE h_prev_instance, PWSTR p_cmd_line, int n_cmd_show) {
+    g_renderer.init(h_instance, windowProc, n_cmd_show);
 
     MSG msg = {};
-    bool should_close = false;
-    while (!should_close) {
-        if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+    while (msg.message != WM_QUIT) {
+        if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
 
-        if (msg.message == WM_QUIT) {
-            break;
-        }
-
-        renderer.render();
+        g_renderer.render();
     }
 
-    return 0;
+    return (int)msg.wParam;
 }
 
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-    static POINT cursor;
-    static bool cursor_hidden = false;
-    switch (uMsg)
-    {
+LRESULT CALLBACK windowProc(HWND hwnd, UINT u_msg, WPARAM w_param, LPARAM l_param) {
+    static POINT s_cursor;
+    static bool s_cursor_hidden = false;
+    switch (u_msg) {
     case WM_KEYDOWN:
-        renderer.handleKey(wParam, lParam);
-        return 0;
+        g_renderer.handleKey(w_param, l_param);
+        break;
 
     case WM_LBUTTONDOWN:
         while (ShowCursor(false) >= 0);
-        cursor_hidden = true;
-        GetCursorPos(&cursor);
-        return 0;
+        s_cursor_hidden = true;
+        GetCursorPos(&s_cursor);
+        break;
 
     case WM_MOUSEMOVE:
-        if(wParam == MK_LBUTTON) {
-            renderer.handleMouse(cursor);
-        } else if(cursor_hidden) {
+        if (w_param == MK_LBUTTON) {
+            POINT current_pos;
+            GetCursorPos(&current_pos);
+            int dx = current_pos.x - s_cursor.x;
+            int dy = current_pos.y - s_cursor.y;
+            g_renderer.handleMouse(dx, dy);
+            SetCursorPos(s_cursor.x, s_cursor.y);
+        } else if (s_cursor_hidden) {
             while (ShowCursor(true) <= 0);
-            cursor_hidden = false;
+            s_cursor_hidden = false;
         }
-        return 0;
+        break;
 
     case WM_LBUTTONUP:
-        SetCursorPos(cursor.x, cursor.y);
+        SetCursorPos(s_cursor.x, s_cursor.y);
         while (ShowCursor(true) <= 0);
-        cursor_hidden = false;
-        return 0;
+        s_cursor_hidden = false;
+        break;
 
     case WM_SIZE:
-        renderer.resize(wParam, lParam);
-        return 1;
+        {
+            size_t width = LOWORD(l_param);
+            size_t height = HIWORD(l_param);
+            g_renderer.resize(width, height);
+        }
+        break;
 
     case WM_DESTROY:
         PostQuitMessage(0);
-        return 0;
+        break;
+
+    default:
+        return DefWindowProc(hwnd, u_msg, w_param, l_param);
+    }
 
     return 0;
-
-    }
-    return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
