@@ -15,6 +15,35 @@
 
 #define DEBUG_LAYER
 
+namespace {
+    ID3DBlob* compileShader(LPCWSTR p_file_name, LPCSTR p_entrypoint, LPCSTR p_target, UINT flags) {
+        ID3DBlob* p_code = nullptr;
+        ID3DBlob* p_error_msgs = nullptr;
+        HRESULT hr = D3DCompileFromFile(p_file_name, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, p_entrypoint, p_target, flags, 0, &p_code, &p_error_msgs);
+        if (p_error_msgs) {
+            OutputDebugStringA((LPCSTR)p_error_msgs->GetBufferPointer());
+        }
+        assert(SUCCEEDED(hr));
+        return p_code;
+    }
+
+    ID3D11VertexShader* createVertexShader(ID3D11Device* p_device, LPCWSTR p_file_name, LPCSTR p_entrypoint, LPCSTR p_target, UINT flags) {
+        ID3DBlob* p_code = compileShader(p_file_name, p_entrypoint, p_target, flags);
+        ID3D11VertexShader* p_vertex_shader;
+        HRESULT hr = p_device->CreateVertexShader(p_code->GetBufferPointer(), p_code->GetBufferSize(), nullptr, &p_vertex_shader);
+        assert(SUCCEEDED(hr));
+        return p_vertex_shader;
+    }
+
+    ID3D11PixelShader* createPixelShader(ID3D11Device* p_device, LPCWSTR p_file_name, LPCSTR p_entrypoint, LPCSTR p_target, UINT flags) {
+        ID3DBlob* p_code = compileShader(p_file_name, p_entrypoint, p_target, flags);
+        ID3D11PixelShader* p_pixel_shader;
+        HRESULT hr = p_device->CreatePixelShader(p_code->GetBufferPointer(), p_code->GetBufferSize(), nullptr, &p_pixel_shader);
+        assert(SUCCEEDED(hr));
+        return p_pixel_shader;
+    }
+}
+
 namespace rendering {
     void Renderer::init(HINSTANCE h_instance, WNDPROC window_proc, int n_cmd_show) {
         initWindow(h_instance, window_proc, n_cmd_show);
@@ -118,12 +147,12 @@ namespace rendering {
         assert(SUCCEEDED(hr));
 
         // Create the depth stencil view
-        D3D11_DEPTH_STENCIL_VIEW_DESC descDSV;
-        ZeroMemory(&descDSV, sizeof(descDSV));
-        descDSV.Format = depth_desc.Format;
-        descDSV.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
-        descDSV.Texture2D.MipSlice = 0;
-        hr = _p_device->CreateDepthStencilView(_p_depth_stencil, &descDSV, &_p_depth_stencil_view);
+        D3D11_DEPTH_STENCIL_VIEW_DESC depth_stencil_view_desc;
+        ZeroMemory(&depth_stencil_view_desc, sizeof(depth_stencil_view_desc));
+        depth_stencil_view_desc.Format = depth_desc.Format;
+        depth_stencil_view_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+        depth_stencil_view_desc.Texture2D.MipSlice = 0;
+        hr = _p_device->CreateDepthStencilView(_p_depth_stencil, &depth_stencil_view_desc, &_p_depth_stencil_view);
         assert(SUCCEEDED(hr));
 
         _p_device_context->OMSetRenderTargets(1, &_p_render_target_view, _p_depth_stencil_view);
@@ -135,100 +164,17 @@ namespace rendering {
         flags |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 #endif
 
-        ID3DBlob* p_error_blob = nullptr;
-        HRESULT hr = D3DCompileFromFile(L"../../lab-3/shaders.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "vsMain", "vs_5_0", flags, 0, &_p_vs_blob, &p_error_blob);
-        if (FAILED(hr)) {
-            if (p_error_blob) {
-                OutputDebugStringA((char*)p_error_blob->GetBufferPointer());
-                p_error_blob->Release();
-            }
-            if (_p_vs_blob) {
-                _p_vs_blob->Release();
-            }
-            assert(false);
-        }
+        _p_vs_blob = compileShader(L"../../lab-3/shaders.hlsl", "vsMain", "vs_5_0", flags);
 
-        ID3DBlob* p_ps_blob = nullptr;
-        hr = D3DCompileFromFile(L"../../lab-3/shaders.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "psMain", "ps_5_0", flags, 0, &p_ps_blob, &p_error_blob);
-        if (FAILED(hr)) {
-            if (p_error_blob) {
-                OutputDebugStringA((char*)p_error_blob->GetBufferPointer());
-                p_error_blob->Release();
-            }
-            if (p_ps_blob) {
-                p_ps_blob->Release();
-            }
-            assert(false);
-        }
+        _p_vertex_shader = createVertexShader(_p_device, L"../../lab-3/shaders.hlsl", "vsMain", "vs_5_0", flags);
+        _p_pixel_shader = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psMain", "ps_5_0", flags);
 
-        ID3DBlob* p_vs_copy_blob = nullptr, * p_ps_copy_blob = nullptr, * p_copy_error_blob = nullptr;
-        hr = D3DCompileFromFile(L"../../lab-3/shaders.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "vsCopyMain", "vs_5_0", flags, 0, &p_vs_copy_blob, &p_copy_error_blob);
-        if (FAILED(hr)) {
-            if (p_copy_error_blob) {
-                OutputDebugStringA((char*)p_copy_error_blob->GetBufferPointer());
-                p_copy_error_blob->Release();
-            }
-            if (p_vs_copy_blob) {
-                p_vs_copy_blob->Release();
-            }
-            assert(false);
-        }
+        _p_vertex_shader_copy = createVertexShader(_p_device, L"../../lab-3/shaders.hlsl", "vsCopyMain", "vs_5_0", flags);
+        _p_pixel_shader_copy = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psCopyMain", "ps_5_0", flags);
 
-        hr = D3DCompileFromFile(L"../../lab-3/shaders.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "psCopyMain", "ps_5_0", flags, 0, &p_ps_copy_blob, &p_copy_error_blob);
-        if (FAILED(hr)) {
-            if (p_copy_error_blob) {
-                OutputDebugStringA((char*)p_copy_error_blob->GetBufferPointer());
-                p_copy_error_blob->Release();
-            }
-            if (p_ps_copy_blob) {
-                p_ps_copy_blob->Release();
-            }
-            assert(false);
-        }
+        _p_pixel_shader_log_luminance = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psLogLuminanceMain", "ps_5_0", flags);
 
-        ID3DBlob* p_ps_log_luminance_blob = nullptr, * p_ps_log_luminance_error_blob = nullptr;
-        hr = D3DCompileFromFile(L"../../lab-3/shaders.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "psLogLuminanceMain", "ps_5_0", flags, 0, &p_ps_log_luminance_blob, &p_ps_log_luminance_error_blob);
-        if (FAILED(hr)) {
-            if (p_ps_log_luminance_error_blob) {
-                OutputDebugStringA((char*)p_ps_log_luminance_error_blob->GetBufferPointer());
-                p_ps_log_luminance_error_blob->Release();
-            }
-            if (p_ps_log_luminance_blob) {
-                p_ps_log_luminance_blob->Release();
-            }
-            assert(false);
-        }
-
-        ID3DBlob* p_ps_tone_mapping_blob = nullptr, * p_ps_tone_mapping_error_blob = nullptr;
-        hr = D3DCompileFromFile(L"../../lab-3/shaders.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "psToneMappingMain", "ps_5_0", flags, 0, &p_ps_tone_mapping_blob, &p_ps_tone_mapping_error_blob);
-        if (FAILED(hr)) {
-            if (p_ps_tone_mapping_error_blob) {
-                OutputDebugStringA((char*)p_ps_tone_mapping_error_blob->GetBufferPointer());
-                p_ps_tone_mapping_error_blob->Release();
-            }
-            if (p_ps_tone_mapping_blob) {
-                p_ps_tone_mapping_blob->Release();
-            }
-            assert(false);
-        }
-
-        hr = _p_device->CreateVertexShader(_p_vs_blob->GetBufferPointer(), _p_vs_blob->GetBufferSize(), nullptr, &_p_vertex_shader);
-        assert(SUCCEEDED(hr));
-
-        hr = _p_device->CreatePixelShader(p_ps_blob->GetBufferPointer(), p_ps_blob->GetBufferSize(), nullptr, &_p_pixel_shader);
-        assert(SUCCEEDED(hr));
-
-        hr = _p_device->CreateVertexShader(p_vs_copy_blob->GetBufferPointer(), p_vs_copy_blob->GetBufferSize(), nullptr, &_p_vertex_shader_copy);
-        assert(SUCCEEDED(hr));
-
-        hr = _p_device->CreatePixelShader(p_ps_copy_blob->GetBufferPointer(), p_ps_copy_blob->GetBufferSize(), nullptr, &_p_pixel_shader_copy);
-        assert(SUCCEEDED(hr));
-
-        hr = _p_device->CreatePixelShader(p_ps_log_luminance_blob->GetBufferPointer(), p_ps_log_luminance_blob->GetBufferSize(), nullptr, &_p_pixel_shader_log_luminance);
-        assert(SUCCEEDED(hr));
-
-        hr = _p_device->CreatePixelShader(p_ps_tone_mapping_blob->GetBufferPointer(), p_ps_tone_mapping_blob->GetBufferSize(), nullptr, &_p_pixel_shader_tone_mapping);
-        assert(SUCCEEDED(hr));
+        _p_pixel_shader_tone_mapping = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psToneMappingMain", "ps_5_0", flags);
     }
 
     void Renderer::initInputLayout() {
@@ -248,7 +194,7 @@ namespace rendering {
         _borders._max = { 20.0f, 10.0f, 20.0f };
 
         Sphere sphere(1.0f, 30, 30, true);
-        const SimpleVertex *vertices = sphere.getVertices();
+        const SimpleVertex* vertices = sphere.getVertices();
         const WORD* indices = sphere.getIndices();
 
         _indices_number = sphere._n_indices;
@@ -417,7 +363,7 @@ namespace rendering {
 
             size_t n = _log_luminance_textures.size() - 1;
             D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << n), FLOAT(1 << n), 0, 1 };
-           _p_device_context->RSSetViewports(1, &vp);
+            _p_device_context->RSSetViewports(1, &vp);
 
             _p_device_context->OMSetRenderTargets(1, &square_copy_render_target_view, nullptr);
 
