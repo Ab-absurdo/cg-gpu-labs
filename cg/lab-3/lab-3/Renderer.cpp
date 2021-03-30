@@ -10,6 +10,7 @@
 #include "ConstantBuffer.h"
 #include "Keys.h"
 #include "SimpleVertex.h"
+#include "Sphere.h"
 
 #define DEBUG_LAYER
 
@@ -250,10 +251,10 @@ namespace rendering {
         _borders._max = { 20.0f, 10.0f, 20.0f };
 
         Sphere sphere(1.0f, 30, 30, true);
-        const SimpleVertex* vertices = sphere.getVertices();
-        const WORD* indices = sphere.getIndices();
+        auto& vertices = sphere.getVertices();
+        auto& indices = sphere.getIndices();
 
-        _indices_number = sphere._n_indices;
+        _indices_number = (UINT)indices.size();
         _vertex_stride = sizeof(SimpleVertex);
         _vertex_offset = 0;
 
@@ -273,9 +274,9 @@ namespace rendering {
         _lights[1]._color = (DirectX::XMFLOAT4)DirectX::Colors::Lime;
         _lights[2]._color = (DirectX::XMFLOAT4)DirectX::Colors::Blue;
 
-        _p_vertex_buffer = createBuffer(_p_device, sizeof(SimpleVertex) * sphere._n_vertices, D3D11_BIND_VERTEX_BUFFER, vertices);
+        _p_vertex_buffer = createBuffer(_p_device, sizeof(SimpleVertex) * (UINT)vertices.size(), D3D11_BIND_VERTEX_BUFFER, vertices.data());
 
-        _p_index_buffer = createBuffer(_p_device, sizeof(WORD) * _indices_number, D3D11_BIND_INDEX_BUFFER, indices);
+        _p_index_buffer = createBuffer(_p_device, sizeof(unsigned) * _indices_number, D3D11_BIND_INDEX_BUFFER, indices.data());
 
         _p_constant_buffer = createBuffer(_p_device, sizeof(ConstantBuffer), D3D11_BIND_CONSTANT_BUFFER, nullptr);
 
@@ -328,7 +329,7 @@ namespace rendering {
             _p_device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             _p_device_context->IASetInputLayout(_p_input_layout);
             _p_device_context->IASetVertexBuffers(0, 1, &_p_vertex_buffer, &_vertex_stride, &_vertex_offset);
-            _p_device_context->IASetIndexBuffer(_p_index_buffer, DXGI_FORMAT_R16_UINT, 0);
+            _p_device_context->IASetIndexBuffer(_p_index_buffer, DXGI_FORMAT_R32_UINT, 0);
 
             _p_annotation->EndEvent();
 

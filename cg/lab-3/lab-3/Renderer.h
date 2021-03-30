@@ -8,7 +8,6 @@
 #include "RenderTexture.h"
 
 #include "Camera.h"
-#include "Geometry.h"
 #include "PointLight.h"
 #include "WorldBorders.h"
 
