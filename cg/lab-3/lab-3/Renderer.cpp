@@ -321,10 +321,11 @@ namespace rendering {
 
             auto render_texture_render_target_view = _render_texture.GetRenderTargetView();
             _p_device_context->ClearRenderTargetView(render_texture_render_target_view, DirectX::Colors::Black.f);
+            _p_device_context->ClearDepthStencilView(_p_depth_stencil_view, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
             _p_device_context->RSSetViewports(1, &_viewport);
 
-            _p_device_context->OMSetRenderTargets(1, &render_texture_render_target_view, nullptr);
+            _p_device_context->OMSetRenderTargets(1, &render_texture_render_target_view, _p_depth_stencil_view);
 
             _p_device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             _p_device_context->IASetInputLayout(_p_input_layout);
