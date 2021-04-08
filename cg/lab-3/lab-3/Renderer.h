@@ -47,7 +47,7 @@ namespace rendering {
         ID3DBlob* _p_vs_blob = nullptr;
 
         ID3D11VertexShader* _p_vertex_shader = nullptr;
-        ID3D11PixelShader* _p_pixel_shader = nullptr;
+        ID3D11PixelShader* _p_pixel_shader_lambert = nullptr;
         ID3D11VertexShader* _p_vertex_shader_copy = nullptr;
         ID3D11PixelShader* _p_pixel_shader_copy = nullptr;
         ID3D11PixelShader* _p_pixel_shader_log_luminance = nullptr;
@@ -64,6 +64,7 @@ namespace rendering {
         Camera _camera;
         PointLight _lights[3];
         DirectX::XMFLOAT4 _ambient_light;
+        DirectX::XMFLOAT4 _sphere_color;
 
         UINT _vertex_stride;
         UINT _vertex_offset;
@@ -73,7 +74,10 @@ namespace rendering {
 
         ID3D11Buffer* _p_vertex_buffer = nullptr;
         ID3D11Buffer* _p_index_buffer = nullptr;
-        ID3D11Buffer* _p_constant_buffer = nullptr;
+        ID3D11Buffer* _p_geometry_cbuffer = nullptr;
+        ID3D11Buffer* _p_sprops_cbuffer = nullptr;
+        ID3D11Buffer* _p_lights_cbuffer = nullptr;
+        ID3D11Buffer* _p_adaptation_cbuffer = nullptr;
 
         ID3D11SamplerState* _p_sampler_linear = nullptr;
 
