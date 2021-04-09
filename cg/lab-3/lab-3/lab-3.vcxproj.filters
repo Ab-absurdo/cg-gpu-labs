@@ -16,6 +16,9 @@
     <Filter Include="RenderTexture">
       <UniqueIdentifier>{98d606c6-81dd-4a56-b7c0-e197990c4be8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="DDSTextureLoader">
+      <UniqueIdentifier>{415b489c-8a6c-4a44-a8a1-1c5f09bc8e76}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -35,6 +38,15 @@
     </ClCompile>
     <ClCompile Include="RenderTexture\RenderTexture.cpp">
       <Filter>RenderTexture</Filter>
+    </ClCompile>
+    <ClCompile Include="DDSTextureLoader\DDSTextureLoader.cpp">
+      <Filter>DDSTextureLoader</Filter>
+    </ClCompile>
+    <ClCompile Include="DDSTextureLoader\pch.cpp">
+      <Filter>DDSTextureLoader</Filter>
+    </ClCompile>
+    <ClCompile Include="DDSTextureLoader\DirectXHelpers.cpp">
+      <Filter>DDSTextureLoader</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -67,6 +79,27 @@
     </ClInclude>
     <ClInclude Include="RenderTexture\RenderTexture.h">
       <Filter>RenderTexture</Filter>
+    </ClInclude>
+    <ClInclude Include="DDSTextureLoader\DDSTextureLoader.h">
+      <Filter>DDSTextureLoader</Filter>
+    </ClInclude>
+    <ClInclude Include="DDSTextureLoader\pch.h">
+      <Filter>DDSTextureLoader</Filter>
+    </ClInclude>
+    <ClInclude Include="DDSTextureLoader\PlatformHelpers.h">
+      <Filter>DDSTextureLoader</Filter>
+    </ClInclude>
+    <ClInclude Include="DDSTextureLoader\DDS.h">
+      <Filter>DDSTextureLoader</Filter>
+    </ClInclude>
+    <ClInclude Include="DDSTextureLoader\DirectXHelpers.h">
+      <Filter>DDSTextureLoader</Filter>
+    </ClInclude>
+    <ClInclude Include="DDSTextureLoader\LoaderHelpers.h">
+      <Filter>DDSTextureLoader</Filter>
+    </ClInclude>
+    <ClInclude Include="DDSTextureLoader\Effects.h">
+      <Filter>DDSTextureLoader</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
