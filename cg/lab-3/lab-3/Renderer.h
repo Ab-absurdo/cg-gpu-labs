@@ -5,7 +5,7 @@
 
 #include <vector>
 
-#include "RenderTexture.h"
+#include "RenderTexture/RenderTexture.h"
 
 #include "ConstantBuffer.h"
 #include "Camera.h"
@@ -42,7 +42,6 @@ namespace rendering {
         ID3D11RenderTargetView* _p_render_target_view = nullptr;
 
         ID3D11Texture2D* _p_depth_stencil = nullptr;
-        ID3D11DepthStencilState* _p_depth_stencil_state = nullptr;
         ID3D11DepthStencilView* _p_depth_stencil_view = nullptr;
 
         ID3DBlob* _p_vs_blob = nullptr;

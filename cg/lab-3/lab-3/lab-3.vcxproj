@@ -148,11 +148,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Camera.cpp" />
+    <ClCompile Include="RenderTexture\RenderTexture.cpp" />
     <ClCompile Include="Sphere.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="PointLight.cpp" />
     <ClCompile Include="Renderer.cpp" />
-    <ClCompile Include="RenderTexture.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders.hlsl">
@@ -174,11 +174,11 @@
   <ItemGroup>
     <ClInclude Include="Camera.h" />
     <ClInclude Include="ConstantBuffer.h" />
+    <ClInclude Include="RenderTexture\RenderTexture.h" />
     <ClInclude Include="Sphere.h" />
     <ClInclude Include="Keys.h" />
     <ClInclude Include="PointLight.h" />
     <ClInclude Include="Renderer.h" />
-    <ClInclude Include="RenderTexture.h" />
     <ClInclude Include="SimpleVertex.h" />
     <ClInclude Include="WorldBorders.h" />
   </ItemGroup>

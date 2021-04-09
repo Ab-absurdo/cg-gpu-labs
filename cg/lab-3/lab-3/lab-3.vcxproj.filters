@@ -13,12 +13,12 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="RenderTexture">
+      <UniqueIdentifier>{98d606c6-81dd-4a56-b7c0-e197990c4be8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
-      <Filter>Исходные файлы</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderTexture.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
     <ClCompile Include="PointLight.cpp">
@@ -33,14 +33,14 @@
     <ClCompile Include="Sphere.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
+    <ClCompile Include="RenderTexture\RenderTexture.cpp">
+      <Filter>RenderTexture</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders.hlsl" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="RenderTexture.h">
-      <Filter>Файлы заголовков</Filter>
-    </ClInclude>
     <ClInclude Include="PointLight.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
@@ -64,6 +64,9 @@
     </ClInclude>
     <ClInclude Include="Sphere.h">
       <Filter>Файлы заголовков</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderTexture\RenderTexture.h">
+      <Filter>RenderTexture</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
