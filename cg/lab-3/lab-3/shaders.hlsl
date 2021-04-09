@@ -1,4 +1,6 @@
-#define N_LIGHTS 3
+static const float PI = 3.14159265f;
+static const float EPSILON = 1e-3f;
+static const int N_LIGHTS = 1;
 
 Texture2D _tx_diffuse : register(t0);
 
@@ -10,11 +12,14 @@ cbuffer GeometryOperators : register(b0)
     matrix _world_normals;
     matrix _view;
     matrix _projection;
+    float4 _camera_pos;
 };
 
 cbuffer SurfaceProps : register(b1)
 {
     float4 _base_color; // albedo
+    float _roughness;   // aplpha
+    float _metalness;
 };
 
 cbuffer Lights : register(b2)
@@ -40,7 +45,6 @@ struct VsOut {
     float4 _position_projected : SV_POSITION;
     float4 _position_world : TEXCOORD0;
     float3 _normal_world : TEXCOORD1;
-  
 };
 
 struct VsCopyOut {
@@ -51,7 +55,7 @@ struct VsCopyOut {
 VsOut vsMain(VsIn input) {
     VsOut output = (VsOut)0;
     output._position_world = mul(input._position_local, _world);
-    output._normal_world = mul(float4(input._normal_local, 1), _world_normals).xyz;
+    output._normal_world = normalize(mul(float4(input._normal_local, 1), _world_normals).xyz);
 
     output._position_projected = mul(output._position_world, _view);
     output._position_projected = mul(output._position_projected, _projection);
@@ -59,25 +63,119 @@ VsOut vsMain(VsIn input) {
     return output;
 }
 
-float3 projected_radiance(int index, float3 pos, float3 nor) // L_i * (l, n)
+float3 projectedRadiance(int index, float3 pos, float3 normal) // L_i * (l, n)
 {
-    const float deg = 5.0f;
+    const float deg = 1.0f;
     const float3 light_dir = _light_pos[index].xyz - pos;
     const float dist = length(light_dir);
-    const float dot_multiplier = pow(saturate(dot(light_dir / dist, nor)), deg);
+    const float dot_multiplier = pow(saturate(dot(light_dir / dist, normal)), deg);
     float att = _light_attenuation[index].x + _light_attenuation[index].y * dist;
     att +=  _light_attenuation[index].z * dist * dist;
     return _light_intensity[index] * dot_multiplier / att * _light_color[index].rgb;
 }
 
-float4 psLambert(VsOut input) : SV_TARGET {
+float ndf(float3 normal, float3 halfway) { // D (Trowbridge-Reitz GGX)
+    const float roughness_squared = clamp(_roughness * _roughness, EPSILON, 1.0f);
+    const float n_dot_h = saturate(dot(normal, halfway));
+    return roughness_squared / PI / pow(n_dot_h * n_dot_h * (roughness_squared - 1.0f) + 1.0f, 2);
+}
+
+float geometryFunction(float3 normal, float3 dir)
+{
+    const float k = (_roughness + 1.0f) * (_roughness + 1.0f) / 8.0f;
+    const float dot_multiplier = saturate(dot(normal, dir));
+    return dot_multiplier / (dot_multiplier * (1.0f - k) + k);
+}
+
+float geometryFunction2dir(float3 normal, float3 light_dir, float3 camera_dir)
+{
+    return geometryFunction(normal, light_dir) * geometryFunction(normal, camera_dir);
+}
+
+float3 fresnelFunction(float3 camera_dir, float3 halfway)
+{
+    const float3 F0_noncond = 0.04f;
+    const float3 F0 = (1.0 - _metalness) * F0_noncond + _metalness * _base_color.rgb;
+    const float dot_multiplier = saturate(dot(camera_dir, halfway));
+    return F0 + (1.0f - F0) * pow(1.0f - dot_multiplier, 5);
+}
+
+float3 brdf(float3 normal, float3 light_dir, float3 camera_dir)
+{
+    const float3 halfway = normalize(camera_dir + light_dir);
+    const float l_dot_n = saturate(dot(light_dir, normal));
+    const float v_dot_n = saturate(dot(camera_dir, normal));
+    const float D = ndf(normal, halfway);
+    const float G = geometryFunction2dir(normal, light_dir, camera_dir);
+    const float3 F = fresnelFunction(camera_dir, halfway);
+
+    const float3 f_lamb = (1.0f - F) * (1.0f - _metalness) * _base_color.rgb / PI;
+    const float3 f_ct = D * F * G / (4.0f * l_dot_n * v_dot_n + EPSILON);
+    return f_lamb + f_ct;
+}
+
+
+float4 psLambert(VsOut input) : SV_TARGET{
     float3 color = _base_color.rgb + _ambient_light.rgb;
     for (int i = 0; i < N_LIGHTS; i++)
     {
-        color += projected_radiance(i, input._position_world, input._normal_world);
+        color += projectedRadiance(i, input._position_world.xyz, input._normal_world);
     }
-    return float4(color, 1.0f);
+    return float4(color, _base_color.a);
 }
+
+float4 psNDF(VsOut input) : SV_TARGET {
+    const float3 pos = input._position_world.xyz;
+    const float3 camera_dir = normalize(_camera_pos.xyz - pos);
+    float color_grayscale = 0.0f;
+    for (int i = 0; i < N_LIGHTS; i++)
+    {
+        const float3 light_dir = normalize(_light_pos[i].xyz - pos);
+        const float3 halfway = normalize(camera_dir + light_dir);
+        color_grayscale += ndf(input._normal_world, halfway);
+    }
+    return color_grayscale;
+}
+
+float4 psGeometry(VsOut input) : SV_TARGET{
+    const float3 pos = input._position_world.xyz;
+    const float3 camera_dir = normalize(_camera_pos.xyz - pos);
+    float color_grayscale = 0.0f;
+    for (int i = 0; i < N_LIGHTS; i++)
+    {
+        const float3 light_dir = normalize(_light_pos[i].xyz - pos);
+        color_grayscale += geometryFunction2dir(input._normal_world, light_dir, camera_dir);
+    }
+    return color_grayscale;
+}
+
+float4 psFresnel(VsOut input) : SV_TARGET{
+    const float3 pos = input._position_world.xyz;
+    const float3 camera_dir = normalize(_camera_pos.xyz - pos);
+    float3 color = 0.0f;
+    for (int i = 0; i < N_LIGHTS; i++)
+    {
+        const float3 light_dir = normalize(_light_pos[i].xyz - pos);
+        const float3 halfway = normalize(camera_dir + light_dir);
+        color += fresnelFunction(camera_dir, halfway) * (dot(light_dir, input._normal_world) > 0.0f);
+    }
+    return float4(color, _base_color.a);
+}
+
+float4 psPBR(VsOut input) : SV_TARGET{
+    const float3 pos = input._position_world.xyz;
+    const float3 camera_dir = normalize(_camera_pos.xyz - pos);
+    float3 color = _base_color.rgb + _ambient_light.rgb;
+    for (int i = 0; i < N_LIGHTS; i++)
+    {
+        const float3 light_dir = normalize(_light_pos[i].xyz - pos);
+        const float3 halfway = normalize(camera_dir + light_dir);
+        const float3 radiance = projectedRadiance(i, pos, input._normal_world);
+        color += radiance * brdf(input._normal_world, light_dir, camera_dir);
+    }
+    return float4(color, _base_color.a);
+}
+
 
 VsCopyOut vsCopyMain(uint input : SV_VERTEXID) {
     VsCopyOut output = (VsCopyOut)0;

@@ -11,8 +11,12 @@ namespace rendering {
         _up = { 0.0f, 1.0f, 0.0f };
     }
 
-    XMMATRIX Camera::getViewMatrix() {
+    XMMATRIX Camera::getViewMatrix() const {
         return XMMatrixLookAtLH(_pos, _pos + _dir, _up);
+    }
+
+    XMVECTOR Camera::getPosition() const {
+        return _pos;
     }
 
     void Camera::move(const XMVECTOR& dv) {

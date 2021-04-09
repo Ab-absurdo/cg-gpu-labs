@@ -2,12 +2,12 @@
 
 #include <d3dcompiler.h>
 #include <DirectXColors.h>
+#include <DirectXMath.h>
 
 #include <cassert>
 #include <chrono>
 #include <string>
 
-#include "ConstantBuffer.h"
 #include "Keys.h"
 #include "SimpleVertex.h"
 #include "Sphere.h"
@@ -204,7 +204,12 @@ namespace rendering {
         _p_vs_blob = compileShader(L"../../lab-3/shaders.hlsl", "vsMain", "vs_5_0", flags);
 
         _p_vertex_shader = createVertexShader(_p_device, L"../../lab-3/shaders.hlsl", "vsMain", "vs_5_0", flags);
+
         _p_pixel_shader_lambert = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psLambert", "ps_5_0", flags);
+        _p_pixel_shader_pbr = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psPBR", "ps_5_0", flags);
+        _p_pixel_shader_ndf = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psNDF", "ps_5_0", flags);
+        _p_pixel_shader_geometry = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psGeometry", "ps_5_0", flags);
+        _p_pixel_shader_fresnel = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psFresnel", "ps_5_0", flags);
 
         _p_vertex_shader_copy = createVertexShader(_p_device, L"../../lab-3/shaders.hlsl", "vsCopyMain", "vs_5_0", flags);
         _p_pixel_shader_copy = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psCopyMain", "ps_5_0", flags);
@@ -257,22 +262,19 @@ namespace rendering {
         _indices_number = (UINT)indices.size();
         _vertex_stride = sizeof(SimpleVertex);
         _vertex_offset = 0;
-        _sphere_color = DirectX::XMFLOAT4(0.1f, 0.15f, 0.1f, 1.0f);
 
-        DirectX::XMVECTOR pos = DirectX::XMVectorSet(0.0f, 1.0f, -2.0f, 0.0f);
+        _sphere_color = {0.2f, 0.0f, 0.0f, 1.0f};
+        _roughness = 0.3f;
+        _metalness = 0.2f;
+
+        DirectX::XMVECTOR pos = DirectX::XMVectorSet(0.0f, 1.5f, -3.0f, 0.0f);
         DirectX::XMVECTOR dir = DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
         _camera = Camera(pos, dir);
 
-        _ambient_light = { 0.1f, 0.1f, 0.1f, 0 };
+        _ambient_light = (DirectX::XMFLOAT4)DirectX::Colors::Black;
 
-        float r = 2.0f, h = 5.0f;
-        _lights[0]._pos = { 0, -h, r, 0 };
-        for (int i = 1; i < N_LIGHTS; i++) {
-            _lights[i]._pos = { r * sinf(i * DirectX::XM_2PI / N_LIGHTS), h, r * cosf(i * DirectX::XM_2PI / N_LIGHTS), 0 };
-        }
-        _lights[0]._color = (DirectX::XMFLOAT4)DirectX::Colors::Red;
-        _lights[1]._color = (DirectX::XMFLOAT4)DirectX::Colors::Lime;
-        _lights[2]._color = (DirectX::XMFLOAT4)DirectX::Colors::Blue;
+        _lights[0]._pos = { 0.0f, 3.0f, -2.0f, 0.0f };
+        _lights[0]._color = (DirectX::XMFLOAT4)DirectX::Colors::White;
 
         _p_vertex_buffer = createBuffer(_p_device, sizeof(SimpleVertex) * (UINT)vertices.size(), D3D11_BIND_VERTEX_BUFFER, vertices.data());
 
@@ -281,8 +283,8 @@ namespace rendering {
        
         _p_geometry_cbuffer = createBuffer(_p_device, sizeof(GeometryOperatorsCB), D3D11_BIND_CONSTANT_BUFFER, nullptr);
         _p_sprops_cbuffer = createBuffer(_p_device, sizeof(SurfacePropsCB), D3D11_BIND_CONSTANT_BUFFER, nullptr);
-        _p_lights_cbuffer = createBuffer(_p_device, sizeof(LightsCB) + 12, D3D11_BIND_CONSTANT_BUFFER, nullptr);
-        _p_adaptation_cbuffer = createBuffer(_p_device, sizeof(AdaptationCB) + 12, D3D11_BIND_CONSTANT_BUFFER, nullptr);
+        _p_lights_cbuffer = createBuffer(_p_device, sizeof(LightsCB), D3D11_BIND_CONSTANT_BUFFER, nullptr);
+        _p_adaptation_cbuffer = createBuffer(_p_device, sizeof(AdaptationCB), D3D11_BIND_CONSTANT_BUFFER, nullptr);
        
 
         D3D11_SAMPLER_DESC samp_desc;
@@ -325,7 +327,8 @@ namespace rendering {
             _p_annotation->BeginEvent(L"Rendering start");
 
             auto render_texture_render_target_view = _render_texture.GetRenderTargetView();
-            _p_device_context->ClearRenderTargetView(render_texture_render_target_view, DirectX::Colors::Black.f);
+            DirectX::XMVECTORF32 background_color = { 0.05f, 0.05f, 0.1f, 1.0f };
+            _p_device_context->ClearRenderTargetView(render_texture_render_target_view, background_color.f);
             _p_device_context->ClearDepthStencilView(_p_depth_stencil_view, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
             _p_device_context->RSSetViewports(1, &_viewport);
@@ -341,6 +344,8 @@ namespace rendering {
 
             _p_annotation->BeginEvent(L"Setting up camera view");
             _view = _camera.getViewMatrix();
+            DirectX::XMFLOAT4 camera_pos;
+            DirectX::XMStoreFloat4(&camera_pos, _camera.getPosition());
             _p_annotation->EndEvent();
 
             GeometryOperatorsCB geometry_cbuffer;
@@ -348,9 +353,11 @@ namespace rendering {
             geometry_cbuffer._world_normals = DirectX::XMMatrixInverse(nullptr, _world);
             geometry_cbuffer._view = DirectX::XMMatrixTranspose(_view);
             geometry_cbuffer._projection = DirectX::XMMatrixTranspose(_projection);
+            geometry_cbuffer._camera_pos = camera_pos;
+          
             _p_device_context->UpdateSubresource(_p_geometry_cbuffer, 0, nullptr, &geometry_cbuffer, 0, 0);
 
-            SurfacePropsCB sprops_cbuffer = { _sphere_color };
+            SurfacePropsCB sprops_cbuffer = { _sphere_color, _roughness, _metalness};
             _p_device_context->UpdateSubresource(_p_sprops_cbuffer, 0, nullptr, &sprops_cbuffer, 0, 0);
 
             LightsCB lights_cbuffer;
@@ -367,7 +374,8 @@ namespace rendering {
 
             _p_device_context->VSSetShader(_p_vertex_shader, nullptr, 0);
             _p_device_context->VSSetConstantBuffers(0, 1, &_p_geometry_cbuffer);
-            _p_device_context->PSSetShader(_p_pixel_shader_lambert, nullptr, 0);
+            _p_device_context->PSSetShader(_p_pixel_shader_pbr, nullptr, 0);
+            _p_device_context->PSSetConstantBuffers(0, 1, &_p_geometry_cbuffer);
             _p_device_context->PSSetConstantBuffers(1, 1, &_p_sprops_cbuffer);
             _p_device_context->PSSetConstantBuffers(2, 1, &_p_lights_cbuffer);
             _p_device_context->PSSetConstantBuffers(3, 1, &_p_adaptation_cbuffer);
@@ -465,12 +473,14 @@ namespace rendering {
             break;
         case (WPARAM)Keys::_2_KEY:
             if (!b30) {
-                _lights[1].changeIntensity();
+                if(N_LIGHTS > 1)
+                    _lights[1].changeIntensity();
             }
             break;
         case (WPARAM)Keys::_3_KEY:
             if (!b30) {
-                _lights[2].changeIntensity();
+                if (N_LIGHTS > 2)
+                    _lights[2].changeIntensity();
             }
             break;
         default:
@@ -537,7 +547,13 @@ namespace rendering {
 
         _p_vertex_shader->Release();
         _p_vertex_shader_copy->Release();
+
         _p_pixel_shader_lambert->Release();
+        _p_pixel_shader_pbr->Release();
+        _p_pixel_shader_ndf->Release();
+        _p_pixel_shader_geometry->Release();
+        _p_pixel_shader_fresnel->Release();
+
         _p_pixel_shader_copy->Release();
         _p_pixel_shader_log_luminance->Release();
         _p_pixel_shader_tone_mapping->Release();

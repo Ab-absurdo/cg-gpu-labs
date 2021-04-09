@@ -9,7 +9,8 @@ namespace rendering {
     public:
         Camera(const DirectX::XMVECTOR& pos = { 0.0f, 0.0f, 0.0f }, const DirectX::XMVECTOR& dir = { 0.0f, 0.0f, 1.0f });
 
-        DirectX::XMMATRIX getViewMatrix();
+        DirectX::XMMATRIX getViewMatrix() const;
+        DirectX::XMVECTOR getPosition() const;
 
         void move(const DirectX::XMVECTOR& dv = { 0.0f, 0.0f, 0.0f });
         void moveNormal(float dn);

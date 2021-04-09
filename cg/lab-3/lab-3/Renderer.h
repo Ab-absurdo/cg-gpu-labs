@@ -7,6 +7,7 @@
 
 #include "RenderTexture.h"
 
+#include "ConstantBuffer.h"
 #include "Camera.h"
 #include "PointLight.h"
 #include "WorldBorders.h"
@@ -47,7 +48,13 @@ namespace rendering {
         ID3DBlob* _p_vs_blob = nullptr;
 
         ID3D11VertexShader* _p_vertex_shader = nullptr;
+
         ID3D11PixelShader* _p_pixel_shader_lambert = nullptr;
+        ID3D11PixelShader* _p_pixel_shader_pbr = nullptr;
+        ID3D11PixelShader* _p_pixel_shader_ndf = nullptr;
+        ID3D11PixelShader* _p_pixel_shader_geometry = nullptr;
+        ID3D11PixelShader* _p_pixel_shader_fresnel = nullptr;
+
         ID3D11VertexShader* _p_vertex_shader_copy = nullptr;
         ID3D11PixelShader* _p_pixel_shader_copy = nullptr;
         ID3D11PixelShader* _p_pixel_shader_log_luminance = nullptr;
@@ -62,15 +69,18 @@ namespace rendering {
 
         WorldBorders _borders;
         Camera _camera;
-        PointLight _lights[3];
+        PointLight _lights[N_LIGHTS];
         DirectX::XMFLOAT4 _ambient_light;
         DirectX::XMFLOAT4 _sphere_color;
+        float _roughness = 0.0f;
+        float _metalness = 0.0f;
+
 
         UINT _vertex_stride;
         UINT _vertex_offset;
         UINT _indices_number;
 
-        float _adapted_log_luminance = 0;
+        float _adapted_log_luminance = 0.0f;
 
         ID3D11Buffer* _p_vertex_buffer = nullptr;
         ID3D11Buffer* _p_index_buffer = nullptr;
