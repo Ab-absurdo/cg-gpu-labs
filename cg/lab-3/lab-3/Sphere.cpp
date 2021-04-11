@@ -28,7 +28,7 @@ namespace rendering {
 			return vertices;
 		}
 
-		std::vector<unsigned> calculateIndices(unsigned n_vertices, unsigned n_theta, unsigned n_phi, bool correct_orientation) {
+		std::vector<unsigned> calculateIndices(unsigned n_vertices, unsigned n_theta, unsigned n_phi, bool outer_normals, bool correct_orientation) {
 			const unsigned top_pole_index = 0;
 			const unsigned bottom_pole_index = n_vertices - 1;
 			const unsigned top_ring_offset = 1;
@@ -69,13 +69,16 @@ namespace rendering {
 				}
 
 			}
+			if (!outer_normals) {
+				std::reverse(indices.begin(), indices.end());
+			}
 			return indices;
 		}
 	}
 
-	Sphere::Sphere(float radius, size_t n_theta, size_t n_phi, bool correct_orientation) 
+	Sphere::Sphere(float radius, size_t n_theta, size_t n_phi, bool outer_normals, bool correct_orientation) 
 		: _vertices(calculateVertices(radius, n_theta, n_phi)),
-		  _indices(calculateIndices((unsigned)_vertices.size(), (unsigned)n_theta, (unsigned)n_phi, correct_orientation)) {}
+		  _indices(calculateIndices((unsigned)_vertices.size(), (unsigned)n_theta, (unsigned)n_phi, outer_normals, correct_orientation)) {}
 
 	const std::vector<SimpleVertex>& Sphere::getVertices() const {
 		return _vertices;

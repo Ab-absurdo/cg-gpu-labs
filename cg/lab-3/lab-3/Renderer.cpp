@@ -8,6 +8,8 @@
 #include <chrono>
 #include <string>
 
+#include "DDSTextureLoader/DDSTextureLoader.h"
+
 #include "Keys.h"
 #include "SimpleVertex.h"
 #include "Sphere.h"
@@ -106,7 +108,6 @@ namespace rendering {
 
     void Renderer::initResources() {
         initDevice();
-        initDepthStencil();
         initShaders();
         initInputLayout();
     }
@@ -158,41 +159,10 @@ namespace rendering {
         hr = _p_device->CreateRenderTargetView(p_framebuffer, 0, &_p_render_target_view);
         assert(SUCCEEDED(hr));
         p_framebuffer->Release();
-    }
 
-    void Renderer::initDepthStencil() {
-        RECT rc;
-        GetClientRect(_hwnd, &rc);
-        UINT width = rc.right - rc.left;
-        UINT height = rc.bottom - rc.top;
-
-        // Create depth stencil texture
-        D3D11_TEXTURE2D_DESC depth_desc;
-        ZeroMemory(&depth_desc, sizeof(depth_desc));
-        depth_desc.Width = width;
-        depth_desc.Height = height;
-        depth_desc.MipLevels = 1;
-        depth_desc.ArraySize = 1;
-        depth_desc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-        depth_desc.SampleDesc.Count = 1;
-        depth_desc.SampleDesc.Quality = 0;
-        depth_desc.Usage = D3D11_USAGE_DEFAULT;
-        depth_desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-        depth_desc.CPUAccessFlags = 0;
-        depth_desc.MiscFlags = 0;
-        HRESULT hr = _p_device->CreateTexture2D(&depth_desc, nullptr, &_p_depth_stencil);
-        assert(SUCCEEDED(hr));
-
-        // Create the depth stencil view
-        D3D11_DEPTH_STENCIL_VIEW_DESC depth_stencil_view_desc;
-        ZeroMemory(&depth_stencil_view_desc, sizeof(depth_stencil_view_desc));
-        depth_stencil_view_desc.Format = depth_desc.Format;
-        depth_stencil_view_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
-        depth_stencil_view_desc.Texture2D.MipSlice = 0;
-        hr = _p_device->CreateDepthStencilView(_p_depth_stencil, &depth_stencil_view_desc, &_p_depth_stencil_view);
-        assert(SUCCEEDED(hr));
-
-        _p_device_context->OMSetRenderTargets(1, &_p_render_target_view, _p_depth_stencil_view);
+        D3D11_DEPTH_STENCIL_DESC dss_desc = CD3D11_DEPTH_STENCIL_DESC(CD3D11_DEFAULT());
+        dss_desc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+        _p_device->CreateDepthStencilState(&dss_desc, &_p_ds_less_equal);
     }
 
     void Renderer::initShaders() {
@@ -217,6 +187,9 @@ namespace rendering {
         _p_pixel_shader_log_luminance = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psLogLuminanceMain", "ps_5_0", flags);
 
         _p_pixel_shader_tone_mapping = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psToneMappingMain", "ps_5_0", flags);
+
+        _p_skymap_vs = createVertexShader(_p_device, L"../../lab-3/shaders.hlsl", "vsSkymap", "vs_5_0", flags);
+        _p_skymap_ps = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psSkymap", "ps_5_0", flags);
     }
 
     void Renderer::initInputLayout() {
@@ -232,6 +205,22 @@ namespace rendering {
 
     void Renderer::resizeResources(size_t width, size_t height) {
         _viewport = { 0.0f, 0.0f, (FLOAT)(width), (FLOAT)(height), 0.0f, 1.0f };
+
+        if (_p_depth_stencil) {
+            _p_depth_stencil->Release();
+        }
+
+        CD3D11_TEXTURE2D_DESC depth_desc(DXGI_FORMAT_D24_UNORM_S8_UINT, (UINT)width, (UINT)height, 1, 1, D3D11_BIND_DEPTH_STENCIL);
+        HRESULT hr = _p_device->CreateTexture2D(&depth_desc, nullptr, &_p_depth_stencil);
+        assert(SUCCEEDED(hr));
+
+        if (_p_depth_stencil_view) {
+            _p_depth_stencil_view->Release();
+        }
+
+        CD3D11_DEPTH_STENCIL_VIEW_DESC depth_stencil_view_desc(D3D11_DSV_DIMENSION_TEXTURE2D, depth_desc.Format);
+        hr = _p_device->CreateDepthStencilView(_p_depth_stencil, &depth_stencil_view_desc, &_p_depth_stencil_view);
+        assert(SUCCEEDED(hr));
 
         // Setup projection
         float near_z = 0.01f, far_z = 100.0f;
@@ -255,7 +244,7 @@ namespace rendering {
         _borders._min = { -20.0f, -10.0f, -20.0f };
         _borders._max = { 20.0f, 10.0f, 20.0f };
 
-        Sphere sphere(1.0f, 30, 30, true);
+        Sphere sphere(1.0f, 30, 30, true, true);
         auto& vertices = sphere.getVertices();
         auto& indices = sphere.getIndices();
 
@@ -318,6 +307,20 @@ namespace rendering {
 
         hr = _p_device->CreateTexture2D(&average_log_luminance_texture_desc, nullptr, &_average_log_luminance_texture);
         assert(SUCCEEDED(hr));
+
+        Sphere environment(1.0f, 10, 10, false, true);
+
+        auto& env_verts = environment.getVertices();
+        _p_sphere_vert_buffer = createBuffer(_p_device, sizeof(SimpleVertex) * (UINT)env_verts.size(), D3D11_BIND_VERTEX_BUFFER, env_verts.data());
+
+        auto& env_indices = environment.getIndices();
+        _env_indices_number = (UINT)env_indices.size();
+        _p_sphere_index_buffer = createBuffer(_p_device, sizeof(unsigned) * _env_indices_number, D3D11_BIND_INDEX_BUFFER, env_indices.data());
+
+        ID3D11Texture2D* p_sm_texture = nullptr;
+        hr = DirectX::CreateDDSTextureFromFileEx(_p_device, L"../../lab-3/skymap.dds", 0, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, D3D11_RESOURCE_MISC_TEXTURECUBE, true, (ID3D11Resource**)(&p_sm_texture), &_p_smrv);
+        assert(SUCCEEDED(hr));
+        p_sm_texture->Release();
     }
 
     void Renderer::render() {
@@ -334,6 +337,7 @@ namespace rendering {
             _p_device_context->RSSetViewports(1, &_viewport);
 
             _p_device_context->OMSetRenderTargets(1, &render_texture_render_target_view, _p_depth_stencil_view);
+            _p_device_context->OMSetDepthStencilState(_p_ds_less_equal, 0);
 
             _p_device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             _p_device_context->IASetInputLayout(_p_input_layout);
@@ -384,6 +388,28 @@ namespace rendering {
             _p_device_context->DrawIndexed(_indices_number, 0, 0);
             _p_device_context->PSSetShaderResources(0, _s_MAX_NUM_SHADER_RESOURCE_VIEWS, _null_shader_resource_views);
             _p_annotation->EndEvent();
+
+            _p_device_context->IASetVertexBuffers(0, 1, &_p_sphere_vert_buffer, &_vertex_stride, &_vertex_offset);
+            _p_device_context->IASetIndexBuffer(_p_sphere_index_buffer, DXGI_FORMAT_R32_UINT, 0);
+
+            auto scale = DirectX::XMMatrixScaling(5, 5, 5);
+            auto translation = DirectX::XMMatrixTranslation(camera_pos.x, camera_pos.y, camera_pos.z);
+            _sphere_world = scale * translation;
+
+            geometry_cbuffer._world = DirectX::XMMatrixTranspose(_sphere_world);
+
+            _p_device_context->UpdateSubresource(_p_geometry_cbuffer, 0, nullptr, &geometry_cbuffer, 0, 0);
+
+            _p_device_context->VSSetShader(_p_skymap_vs, nullptr, 0);
+            _p_device_context->VSSetConstantBuffers(0, 1, &_p_geometry_cbuffer);
+            _p_device_context->PSSetShader(_p_skymap_ps, nullptr, 0);
+
+            _p_device_context->PSSetShaderResources(0, 1, &_p_smrv);
+            _p_device_context->PSSetSamplers(0, 1, &_p_sampler_linear);
+
+            _p_device_context->DrawIndexed(_env_indices_number, 0, 0);
+
+            _p_device_context->PSSetShaderResources(0, _s_MAX_NUM_SHADER_RESOURCE_VIEWS, _null_shader_resource_views);
         }
 
         {
@@ -439,7 +465,6 @@ namespace rendering {
 
             renderTexture(_p_device_context, &_p_render_target_view, _viewport, _p_vertex_shader_copy, 
                 _p_pixel_shader_tone_mapping, &render_texture_shader_resource_view, &_p_sampler_linear, &_p_adaptation_cbuffer, &adaptation_cbuffer);
-
             _p_swap_chain->Present(1, 0);
         }
     }
@@ -538,6 +563,8 @@ namespace rendering {
         _p_adaptation_cbuffer->Release();
         _p_vertex_buffer->Release();
         _p_index_buffer->Release();
+        _p_sphere_vert_buffer->Release();
+        _p_sphere_index_buffer->Release();
 
         _p_input_layout->Release();
 
@@ -545,8 +572,11 @@ namespace rendering {
 
         _average_log_luminance_texture->Release();
 
+        _p_smrv->Release();
+
         _p_vertex_shader->Release();
         _p_vertex_shader_copy->Release();
+        _p_skymap_vs->Release();
 
         _p_pixel_shader_lambert->Release();
         _p_pixel_shader_pbr->Release();
@@ -557,9 +587,11 @@ namespace rendering {
         _p_pixel_shader_copy->Release();
         _p_pixel_shader_log_luminance->Release();
         _p_pixel_shader_tone_mapping->Release();
+        _p_skymap_ps->Release();
 
         _p_depth_stencil->Release();
         _p_depth_stencil_view->Release();
+        _p_ds_less_equal->Release();
 
         _p_render_target_view->Release();
         _p_swap_chain->Release();

@@ -4,6 +4,8 @@ static const int N_LIGHTS = 1;
 
 Texture2D _tx_diffuse : register(t0);
 
+TextureCube _sky_map : register(t0);
+
 SamplerState _sam_linear : register(s0);
 
 cbuffer GeometryOperators : register(b0)
@@ -50,6 +52,11 @@ struct VsOut {
 struct VsCopyOut {
     float4 _position : SV_POSITION;
     float2 _tex : TEXCOORD;
+};
+
+struct VsSkymapOut {
+    float4 _pos : SV_POSITION;
+    float3 _tex : TEXCOORD;
 };
 
 VsOut vsMain(VsIn input) {
@@ -227,4 +234,18 @@ float3 tonemapFilmic(float3 color)
 float4 psToneMappingMain(VsCopyOut input) : SV_TARGET {
     float4 color = _tx_diffuse.Sample(_sam_linear, input._tex);
     return float4(pow(tonemapFilmic(color.xyz), 1 / 2.2), color.a);
+}
+
+VsSkymapOut vsSkymap(VsIn input) {
+    VsSkymapOut output = (VsSkymapOut)0;
+    output._pos = mul(input._position_local, _world);
+    output._pos = mul(output._pos, _view);
+    output._pos = mul(output._pos, _projection);
+    output._pos = output._pos.xyww;
+    output._tex = input._position_local.xyz;
+    return output;
+}
+
+float4 psSkymap(VsSkymapOut input) : SV_TARGET {
+    return _sky_map.Sample(_sam_linear, input._tex);
 }
