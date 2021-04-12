@@ -9,6 +9,9 @@
 #include <string>
 
 #include "DDSTextureLoader/DDSTextureLoader.h"
+#include "ImGui/imgui.h"
+#include "ImGui/imgui_impl_dx11.h"
+#include "ImGui/imgui_impl_win32.h"
 
 #include "Keys.h"
 #include "SimpleVertex.h"
@@ -87,6 +90,7 @@ namespace rendering {
     void Renderer::init(HINSTANCE h_instance, WNDPROC window_proc, int n_cmd_show) {
         initWindow(h_instance, window_proc, n_cmd_show);
         initResources();
+        initImGui();
         initScene();
     }
 
@@ -240,6 +244,16 @@ namespace rendering {
         }
     }
 
+    void Renderer::initImGui() {
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+
+        ImGui::StyleColorsDark();
+
+        ImGui_ImplWin32_Init(_hwnd);
+        ImGui_ImplDX11_Init(_p_device, _p_device_context);
+    }
+
     void Renderer::initScene() {
         _borders._min = { -20.0f, -10.0f, -20.0f };
         _borders._max = { 20.0f, 10.0f, 20.0f };
@@ -252,7 +266,8 @@ namespace rendering {
         _vertex_stride = sizeof(SimpleVertex);
         _vertex_offset = 0;
 
-        _sphere_color = {0.2f, 0.0f, 0.0f, 1.0f};
+        const float SPHERE_COLOR_RGB[4] = { 0.2f, 0.0f, 0.0f, 1.0f };
+        memcpy(_sphere_color_rgb, SPHERE_COLOR_RGB, sizeof(float) * 4);
         _roughness = 0.3f;
         _metalness = 0.2f;
 
@@ -326,17 +341,35 @@ namespace rendering {
     void Renderer::render() {
         auto start = std::chrono::high_resolution_clock::now();
 
+        auto render_texture_render_target_view = _render_texture.GetRenderTargetView();
+        auto render_target_view = _render_mode == RenderModes::PBR ? render_texture_render_target_view : _p_render_target_view;
+
+        ID3D11PixelShader* p_pixel_shader = nullptr;
+        switch (_render_mode) {
+        case RenderModes::PBR:
+            p_pixel_shader = _p_pixel_shader_pbr;
+            break;
+        case RenderModes::NDF:
+            p_pixel_shader = _p_pixel_shader_ndf;
+            break;
+        case RenderModes::GEOMETRY:
+            p_pixel_shader = _p_pixel_shader_geometry;
+            break;
+        case RenderModes::FRESNEL:
+            p_pixel_shader = _p_pixel_shader_fresnel;
+            break;
+        }
+
         {
             _p_annotation->BeginEvent(L"Rendering start");
 
-            auto render_texture_render_target_view = _render_texture.GetRenderTargetView();
             DirectX::XMVECTORF32 background_color = { 0.05f, 0.05f, 0.1f, 1.0f };
-            _p_device_context->ClearRenderTargetView(render_texture_render_target_view, background_color.f);
+            _p_device_context->ClearRenderTargetView(render_target_view, background_color.f);
             _p_device_context->ClearDepthStencilView(_p_depth_stencil_view, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
             _p_device_context->RSSetViewports(1, &_viewport);
 
-            _p_device_context->OMSetRenderTargets(1, &render_texture_render_target_view, _p_depth_stencil_view);
+            _p_device_context->OMSetRenderTargets(1, &render_target_view, _p_depth_stencil_view);
             _p_device_context->OMSetDepthStencilState(_p_ds_less_equal, 0);
 
             _p_device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -361,7 +394,12 @@ namespace rendering {
           
             _p_device_context->UpdateSubresource(_p_geometry_cbuffer, 0, nullptr, &geometry_cbuffer, 0, 0);
 
-            SurfacePropsCB sprops_cbuffer = { _sphere_color, _roughness, _metalness};
+            float sphere_color_srgb[4];
+            for (size_t i = 0; i < 4; ++i) {
+                sphere_color_srgb[i] = powf(_sphere_color_rgb[i], 2.2f);
+            }
+            _sphere_color_srgb = DirectX::XMFLOAT4(sphere_color_srgb);
+            SurfacePropsCB sprops_cbuffer = { _sphere_color_srgb, _roughness, _metalness};
             _p_device_context->UpdateSubresource(_p_sprops_cbuffer, 0, nullptr, &sprops_cbuffer, 0, 0);
 
             LightsCB lights_cbuffer;
@@ -378,7 +416,7 @@ namespace rendering {
 
             _p_device_context->VSSetShader(_p_vertex_shader, nullptr, 0);
             _p_device_context->VSSetConstantBuffers(0, 1, &_p_geometry_cbuffer);
-            _p_device_context->PSSetShader(_p_pixel_shader_pbr, nullptr, 0);
+            _p_device_context->PSSetShader(p_pixel_shader, nullptr, 0);
             _p_device_context->PSSetConstantBuffers(0, 1, &_p_geometry_cbuffer);
             _p_device_context->PSSetConstantBuffers(1, 1, &_p_sprops_cbuffer);
             _p_device_context->PSSetConstantBuffers(2, 1, &_p_lights_cbuffer);
@@ -412,59 +450,79 @@ namespace rendering {
             _p_device_context->PSSetShaderResources(0, _s_MAX_NUM_SHADER_RESOURCE_VIEWS, _null_shader_resource_views);
         }
 
-        {
-            auto render_texture_shader_resource_view = _render_texture.GetShaderResourceView();
-            auto square_copy_render_target_view = _square_copy.GetRenderTargetView();
+        if (_render_mode == RenderModes::PBR) {
+            {
+                auto render_texture_shader_resource_view = _render_texture.GetShaderResourceView();
+                auto square_copy_render_target_view = _square_copy.GetRenderTargetView();
 
-            size_t n = _log_luminance_textures.size() - 1;
-            D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << n), FLOAT(1 << n), 0, 1 };
+                size_t n = _log_luminance_textures.size() - 1;
+                D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << n), FLOAT(1 << n), 0, 1 };
 
-            renderTexture(_p_device_context, &square_copy_render_target_view, vp, _p_vertex_shader_copy, _p_pixel_shader_copy, &render_texture_shader_resource_view, &_p_sampler_linear);
-        }
+                renderTexture(_p_device_context, &square_copy_render_target_view, vp, _p_vertex_shader_copy, _p_pixel_shader_copy, &render_texture_shader_resource_view, &_p_sampler_linear);
+            }
 
-        {
-            auto square_copy_shader_resource_view = _square_copy.GetShaderResourceView();
-            auto first_log_luminance_texture_render_target_view = _log_luminance_textures.front().GetRenderTargetView();
+            {
+                auto square_copy_shader_resource_view = _square_copy.GetShaderResourceView();
+                auto first_log_luminance_texture_render_target_view = _log_luminance_textures.front().GetRenderTargetView();
 
-            size_t n = _log_luminance_textures.size() - 1;
-            D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << n), FLOAT(1 << n), 0, 1 };
+                size_t n = _log_luminance_textures.size() - 1;
+                D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << n), FLOAT(1 << n), 0, 1 };
 
-            renderTexture(_p_device_context, &first_log_luminance_texture_render_target_view, vp, _p_vertex_shader_copy, _p_pixel_shader_log_luminance, &square_copy_shader_resource_view, &_p_sampler_linear);
-        }
+                renderTexture(_p_device_context, &first_log_luminance_texture_render_target_view, vp, _p_vertex_shader_copy, _p_pixel_shader_log_luminance, &square_copy_shader_resource_view, &_p_sampler_linear);
+            }
 
-        {
-            size_t n = _log_luminance_textures.size() - 1;
+            {
+                size_t n = _log_luminance_textures.size() - 1;
 
-            for (size_t i = 1; i <= n; ++i) {
-                auto previous_log_luminance_texture_shader_resource_view = _log_luminance_textures[i - 1].GetShaderResourceView();
-                auto next_log_luminance_texture_render_target_view = _log_luminance_textures[i].GetRenderTargetView();
+                for (size_t i = 1; i <= n; ++i) {
+                    auto previous_log_luminance_texture_shader_resource_view = _log_luminance_textures[i - 1].GetShaderResourceView();
+                    auto next_log_luminance_texture_render_target_view = _log_luminance_textures[i].GetRenderTargetView();
 
-                D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << (n - i)), FLOAT(1 << (n - i)), 0, 1 };
+                    D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << (n - i)), FLOAT(1 << (n - i)), 0, 1 };
 
-                renderTexture(_p_device_context, &next_log_luminance_texture_render_target_view, vp, _p_vertex_shader_copy, _p_pixel_shader_copy, &previous_log_luminance_texture_shader_resource_view, &_p_sampler_linear);
+                    renderTexture(_p_device_context, &next_log_luminance_texture_render_target_view, vp, _p_vertex_shader_copy, _p_pixel_shader_copy, &previous_log_luminance_texture_shader_resource_view, &_p_sampler_linear);
+                }
+            }
+
+            {
+                D3D11_MAPPED_SUBRESOURCE average_log_luminance_mapped_subresource;
+                _p_device_context->CopyResource(_average_log_luminance_texture, _log_luminance_textures.back().GetRenderTarget());
+                _p_device_context->Map(_average_log_luminance_texture, 0, D3D11_MAP_READ, 0, &average_log_luminance_mapped_subresource);
+                float average_log_luminance = ((float*)average_log_luminance_mapped_subresource.pData)[0];
+                _p_device_context->Unmap(_average_log_luminance_texture, 0);
+
+                auto end = std::chrono::high_resolution_clock::now();
+                float delta_t = std::chrono::duration<float>(end - start).count();
+                float s = 1;
+                _adapted_log_luminance += (average_log_luminance - _adapted_log_luminance) * (1 - expf(-delta_t / s));
+
+                AdaptationCB adaptation_cbuffer;
+                adaptation_cbuffer._adapted_log_luminance = _adapted_log_luminance;
+
+
+                auto render_texture_shader_resource_view = _render_texture.GetShaderResourceView();
+
+                renderTexture(_p_device_context, &_p_render_target_view, _viewport, _p_vertex_shader_copy,
+                    _p_pixel_shader_tone_mapping, &render_texture_shader_resource_view, &_p_sampler_linear, &_p_adaptation_cbuffer, &adaptation_cbuffer);
             }
         }
 
         {
-            D3D11_MAPPED_SUBRESOURCE average_log_luminance_mapped_subresource;
-            _p_device_context->CopyResource(_average_log_luminance_texture, _log_luminance_textures.back().GetRenderTarget());
-            _p_device_context->Map(_average_log_luminance_texture, 0, D3D11_MAP_READ, 0, &average_log_luminance_mapped_subresource);
-            float average_log_luminance = ((float*)average_log_luminance_mapped_subresource.pData)[0];
-            _p_device_context->Unmap(_average_log_luminance_texture, 0);
+            ImGui_ImplDX11_NewFrame();
+            ImGui_ImplWin32_NewFrame();
+            ImGui::NewFrame();
+            ImGui::Begin("Scene parameters");
+            ImGui::Text("Scene");
+            ImGui::ListBox("Render mode", (int*)(&_render_mode), _render_modes, _s_RENDER_MODES_NUMBER);
+            ImGui::Text("Object");
+            ImGui::SliderFloat("Roughness", &_roughness, 0, 1);
+            ImGui::SliderFloat("Metalness", &_metalness, 0, 1);
+            ImGui::ColorEdit3("Metal F0", _sphere_color_rgb);
+            ImGui::End();
 
-            auto end = std::chrono::high_resolution_clock::now();
-            float delta_t = std::chrono::duration<float>(end - start).count();
-            float s = 1;
-            _adapted_log_luminance += (average_log_luminance - _adapted_log_luminance) * (1 - expf(-delta_t / s));
+            ImGui::Render();
+            ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 
-            AdaptationCB adaptation_cbuffer;
-            adaptation_cbuffer._adapted_log_luminance = _adapted_log_luminance;
-          
-
-            auto render_texture_shader_resource_view = _render_texture.GetShaderResourceView();
-
-            renderTexture(_p_device_context, &_p_render_target_view, _viewport, _p_vertex_shader_copy, 
-                _p_pixel_shader_tone_mapping, &render_texture_shader_resource_view, &_p_sampler_linear, &_p_adaptation_cbuffer, &adaptation_cbuffer);
             _p_swap_chain->Present(1, 0);
         }
     }
@@ -555,6 +613,10 @@ namespace rendering {
     }
 
     Renderer::~Renderer() {
+        ImGui_ImplDX11_Shutdown();
+        ImGui_ImplWin32_Shutdown();
+        ImGui::DestroyContext();
+
         _p_device_context->ClearState();
 
         _p_geometry_cbuffer->Release();

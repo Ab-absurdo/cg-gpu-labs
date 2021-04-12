@@ -10,6 +10,7 @@
 #include "ConstantBuffer.h"
 #include "Camera.h"
 #include "PointLight.h"
+#include "RenderModes.h"
 #include "WorldBorders.h"
 
 namespace rendering {
@@ -29,6 +30,7 @@ namespace rendering {
         void initDevice();
         void initShaders();
         void initInputLayout();
+        void initImGui();
         void initScene();
 
         void resizeResources(size_t width, size_t height);
@@ -64,6 +66,11 @@ namespace rendering {
 
         ID3D11InputLayout* _p_input_layout = nullptr;
 
+        static const size_t _s_RENDER_MODES_NUMBER = 4;
+        const char* _render_modes[_s_RENDER_MODES_NUMBER] = { "PBR", "NDF", "Geometry", "Fresnel" };
+        RenderModes _render_mode = RenderModes::PBR;
+
+
         DirectX::XMMATRIX _world = DirectX::XMMatrixIdentity();
         DirectX::XMMATRIX _view = DirectX::XMMatrixIdentity();
         DirectX::XMMATRIX _projection = DirectX::XMMatrixIdentity();
@@ -74,7 +81,8 @@ namespace rendering {
         Camera _camera;
         PointLight _lights[N_LIGHTS];
         DirectX::XMFLOAT4 _ambient_light;
-        DirectX::XMFLOAT4 _sphere_color;
+        float _sphere_color_rgb[4];
+        DirectX::XMFLOAT4 _sphere_color_srgb;
         float _roughness = 0.0f;
         float _metalness = 0.0f;
 

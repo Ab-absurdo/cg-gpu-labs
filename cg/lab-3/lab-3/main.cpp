@@ -1,3 +1,5 @@
+#include "ImGui/imgui_impl_win32.h"
+
 #include "Renderer.h"
 
 static rendering::Renderer s_g_renderer;
@@ -20,7 +22,13 @@ int WINAPI wWinMain(HINSTANCE h_instance, HINSTANCE h_prev_instance, PWSTR p_cmd
     return (int)msg.wParam;
 }
 
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 LRESULT CALLBACK windowProc(HWND hwnd, UINT u_msg, WPARAM w_param, LPARAM l_param) {
+    if (ImGui_ImplWin32_WndProcHandler(hwnd, u_msg, w_param, l_param)) {
+        return true;
+    }
+
     static POINT s_cursor;
     static bool s_cursor_hidden = false;
     switch (u_msg) {
@@ -29,12 +37,18 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT u_msg, WPARAM w_param, LPARAM l_para
         break;
 
     case WM_LBUTTONDOWN:
+        if (ImGui::GetIO().WantCaptureMouse) {
+            break;
+        }
         while (ShowCursor(false) >= 0);
         s_cursor_hidden = true;
         GetCursorPos(&s_cursor);
         break;
 
     case WM_MOUSEMOVE:
+        if (ImGui::GetIO().WantCaptureMouse) {
+            break;
+        }
         if (w_param == MK_LBUTTON) {
             POINT current_pos;
             GetCursorPos(&current_pos);
@@ -49,6 +63,9 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT u_msg, WPARAM w_param, LPARAM l_para
         break;
 
     case WM_LBUTTONUP:
+        if (ImGui::GetIO().WantCaptureMouse) {
+            break;
+        }
         SetCursorPos(s_cursor.x, s_cursor.y);
         while (ShowCursor(true) <= 0);
         s_cursor_hidden = false;

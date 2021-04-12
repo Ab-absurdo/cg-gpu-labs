@@ -198,6 +198,7 @@
     <ClInclude Include="ImGui\imstb_rectpack.h" />
     <ClInclude Include="ImGui\imstb_textedit.h" />
     <ClInclude Include="ImGui\imstb_truetype.h" />
+    <ClInclude Include="RenderModes.h" />
     <ClInclude Include="RenderTexture\RenderTexture.h" />
     <ClInclude Include="Sphere.h" />
     <ClInclude Include="Keys.h" />
