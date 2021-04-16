@@ -104,7 +104,7 @@ namespace rendering {
 
         RegisterClass(&wc);
 
-        _hwnd = CreateWindowEx(0, CLASS_NAME, L"Computer Graphics: lab3", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, nullptr, nullptr, h_instance, nullptr);
+        _hwnd = CreateWindowEx(0, CLASS_NAME, L"Computer Graphics: lab4", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, nullptr, nullptr, h_instance, nullptr);
         assert(!(_hwnd == nullptr));
 
         ShowWindow(_hwnd, n_cmd_show);
