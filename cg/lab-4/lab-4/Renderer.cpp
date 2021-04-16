@@ -175,25 +175,25 @@ namespace rendering {
         flags |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 #endif
 
-        _p_vs_blob = compileShader(L"../../lab-3/shaders.hlsl", "vsMain", "vs_5_0", flags);
+        _p_vs_blob = compileShader(L"../../lab-4/shaders.hlsl", "vsMain", "vs_5_0", flags);
 
-        _p_vertex_shader = createVertexShader(_p_device, L"../../lab-3/shaders.hlsl", "vsMain", "vs_5_0", flags);
+        _p_vertex_shader = createVertexShader(_p_device, L"../../lab-4/shaders.hlsl", "vsMain", "vs_5_0", flags);
 
-        _p_pixel_shader_lambert = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psLambert", "ps_5_0", flags);
-        _p_pixel_shader_pbr = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psPBR", "ps_5_0", flags);
-        _p_pixel_shader_ndf = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psNDF", "ps_5_0", flags);
-        _p_pixel_shader_geometry = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psGeometry", "ps_5_0", flags);
-        _p_pixel_shader_fresnel = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psFresnel", "ps_5_0", flags);
+        _p_pixel_shader_lambert = createPixelShader(_p_device, L"../../lab-4/shaders.hlsl", "psLambert", "ps_5_0", flags);
+        _p_pixel_shader_pbr = createPixelShader(_p_device, L"../../lab-4/shaders.hlsl", "psPBR", "ps_5_0", flags);
+        _p_pixel_shader_ndf = createPixelShader(_p_device, L"../../lab-4/shaders.hlsl", "psNDF", "ps_5_0", flags);
+        _p_pixel_shader_geometry = createPixelShader(_p_device, L"../../lab-4/shaders.hlsl", "psGeometry", "ps_5_0", flags);
+        _p_pixel_shader_fresnel = createPixelShader(_p_device, L"../../lab-4/shaders.hlsl", "psFresnel", "ps_5_0", flags);
 
-        _p_vertex_shader_copy = createVertexShader(_p_device, L"../../lab-3/shaders.hlsl", "vsCopyMain", "vs_5_0", flags);
-        _p_pixel_shader_copy = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psCopyMain", "ps_5_0", flags);
+        _p_vertex_shader_copy = createVertexShader(_p_device, L"../../lab-4/shaders.hlsl", "vsCopyMain", "vs_5_0", flags);
+        _p_pixel_shader_copy = createPixelShader(_p_device, L"../../lab-4/shaders.hlsl", "psCopyMain", "ps_5_0", flags);
 
-        _p_pixel_shader_log_luminance = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psLogLuminanceMain", "ps_5_0", flags);
+        _p_pixel_shader_log_luminance = createPixelShader(_p_device, L"../../lab-4/shaders.hlsl", "psLogLuminanceMain", "ps_5_0", flags);
 
-        _p_pixel_shader_tone_mapping = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psToneMappingMain", "ps_5_0", flags);
+        _p_pixel_shader_tone_mapping = createPixelShader(_p_device, L"../../lab-4/shaders.hlsl", "psToneMappingMain", "ps_5_0", flags);
 
-        _p_skymap_vs = createVertexShader(_p_device, L"../../lab-3/shaders.hlsl", "vsSkymap", "vs_5_0", flags);
-        _p_skymap_ps = createPixelShader(_p_device, L"../../lab-3/shaders.hlsl", "psSkymap", "ps_5_0", flags);
+        _p_skymap_vs = createVertexShader(_p_device, L"../../lab-4/shaders.hlsl", "vsSkymap", "vs_5_0", flags);
+        _p_skymap_ps = createPixelShader(_p_device, L"../../lab-4/shaders.hlsl", "psSkymap", "ps_5_0", flags);
     }
 
     void Renderer::initInputLayout() {
@@ -333,7 +333,7 @@ namespace rendering {
         _p_sphere_index_buffer = createBuffer(_p_device, sizeof(unsigned) * _env_indices_number, D3D11_BIND_INDEX_BUFFER, env_indices.data());
 
         ID3D11Texture2D* p_sm_texture = nullptr;
-        hr = DirectX::CreateDDSTextureFromFileEx(_p_device, L"../../lab-3/skymap.dds", 0, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, D3D11_RESOURCE_MISC_TEXTURECUBE, true, (ID3D11Resource**)(&p_sm_texture), &_p_smrv);
+        hr = DirectX::CreateDDSTextureFromFileEx(_p_device, L"../../lab-4/skymap.dds", 0, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, D3D11_RESOURCE_MISC_TEXTURECUBE, true, (ID3D11Resource**)(&p_sm_texture), &_p_smrv);
         assert(SUCCEEDED(hr));
         p_sm_texture->Release();
     }
