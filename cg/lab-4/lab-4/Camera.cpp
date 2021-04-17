@@ -5,11 +5,8 @@
 using namespace DirectX;
 
 namespace rendering {
-    Camera::Camera(const XMVECTOR& pos, const XMVECTOR& dir)
-        : _pos(pos) {
-        _dir = XMVector3Normalize(dir);
-        _up = { 0.0f, 1.0f, 0.0f };
-    }
+    Camera::Camera(const XMVECTOR& pos, const XMVECTOR& dir, const XMVECTOR& up)
+        : _pos(pos), _dir(XMVector3Normalize(dir)), _up(up) {}
 
     XMMATRIX Camera::getViewMatrix() const {
         return XMMatrixLookAtLH(_pos, _pos + _dir, _up);

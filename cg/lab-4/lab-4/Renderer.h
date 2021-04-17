@@ -57,6 +57,7 @@ namespace rendering {
         ID3D11PixelShader* _p_pixel_shader_fresnel = nullptr;
 
         ID3D11VertexShader* _p_vertex_shader_copy = nullptr;
+        ID3D11PixelShader* _p_pixel_shader_cube_map = nullptr;
         ID3D11PixelShader* _p_pixel_shader_copy = nullptr;
         ID3D11PixelShader* _p_pixel_shader_log_luminance = nullptr;
         ID3D11PixelShader* _p_pixel_shader_tone_mapping = nullptr;

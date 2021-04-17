@@ -236,6 +236,13 @@ float4 psToneMappingMain(VsCopyOut input) : SV_TARGET {
     return float4(pow(tonemapFilmic(color.xyz), 1 / 2.2), color.a);
 }
 
+float4 psCubeMap(VsOut input) : SV_TARGET{
+    float3 n = normalize(input._position_world.xyz);
+    float u = 1.0 - atan2(n.z, n.x) / (2 * PI);
+    float v = 0.5 - asin(n.y) / PI;
+    return _tx_diffuse.Sample(_sam_linear, float2(u, v));
+}
+
 VsSkymapOut vsSkymap(VsIn input) {
     VsSkymapOut output = (VsSkymapOut)0;
     output._pos = mul(input._position_local, _world);

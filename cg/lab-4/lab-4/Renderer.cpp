@@ -8,10 +8,12 @@
 #include <chrono>
 #include <string>
 
-#include "DDSTextureLoader/DDSTextureLoader.h"
 #include "ImGui/imgui.h"
 #include "ImGui/imgui_impl_dx11.h"
 #include "ImGui/imgui_impl_win32.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "STBImage/stb_image.h"
 
 #include "Keys.h"
 #include "SimpleVertex.h"
@@ -185,6 +187,8 @@ namespace rendering {
         _p_pixel_shader_geometry = createPixelShader(_p_device, L"../../lab-4/shaders.hlsl", "psGeometry", "ps_5_0", flags);
         _p_pixel_shader_fresnel = createPixelShader(_p_device, L"../../lab-4/shaders.hlsl", "psFresnel", "ps_5_0", flags);
 
+        _p_pixel_shader_cube_map = createPixelShader(_p_device, L"../../lab-4/shaders.hlsl", "psCubeMap", "ps_5_0", flags);
+
         _p_vertex_shader_copy = createVertexShader(_p_device, L"../../lab-4/shaders.hlsl", "vsCopyMain", "vs_5_0", flags);
         _p_pixel_shader_copy = createPixelShader(_p_device, L"../../lab-4/shaders.hlsl", "psCopyMain", "ps_5_0", flags);
 
@@ -332,10 +336,112 @@ namespace rendering {
         _env_indices_number = (UINT)env_indices.size();
         _p_sphere_index_buffer = createBuffer(_p_device, sizeof(unsigned) * _env_indices_number, D3D11_BIND_INDEX_BUFFER, env_indices.data());
 
+        int x, y, channels_in_file;
+        float* data = stbi_loadf("../../lab-4/rooitou_park_1k.hdr", &x, &y, &channels_in_file, STBI_rgb_alpha);
+        assert(data);
+
+        CD3D11_TEXTURE2D_DESC sm_desc(DXGI_FORMAT_R32G32B32A32_FLOAT, x, y, 1, 1, D3D11_BIND_SHADER_RESOURCE);
+
+        D3D11_SUBRESOURCE_DATA initial_data;
+        initial_data.pSysMem = data;
+        initial_data.SysMemPitch = x * (4 * sizeof(float));
+
         ID3D11Texture2D* p_sm_texture = nullptr;
-        hr = DirectX::CreateDDSTextureFromFileEx(_p_device, L"../../lab-4/skymap.dds", 0, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, D3D11_RESOURCE_MISC_TEXTURECUBE, true, (ID3D11Resource**)(&p_sm_texture), &_p_smrv);
+        hr = _p_device->CreateTexture2D(&sm_desc, &initial_data, &p_sm_texture);
+        assert(SUCCEEDED(hr));
+        stbi_image_free(data);
+
+        CD3D11_SHADER_RESOURCE_VIEW_DESC smrv_desc(D3D11_SRV_DIMENSION_TEXTURE2D, sm_desc.Format);
+        ID3D11ShaderResourceView* p_smrv = nullptr;
+        hr = _p_device->CreateShaderResourceView(p_sm_texture, &smrv_desc, &p_smrv);
         assert(SUCCEEDED(hr));
         p_sm_texture->Release();
+
+        sm_desc = CD3D11_TEXTURE2D_DESC(DXGI_FORMAT_R32G32B32A32_FLOAT, 512, 512, 6, 1, D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_DEFAULT, 0, 1, 0, D3D11_RESOURCE_MISC_TEXTURECUBE);
+        _p_device->CreateTexture2D(&sm_desc, nullptr, &p_sm_texture);
+
+        DX::RenderTexture rt;
+        rt.SetDevice(_p_device);
+        rt.SizeResources(512, 512);
+
+        auto p_rtv = rt.GetRenderTargetView();
+        _p_device_context->OMSetRenderTargets(1, &p_rtv, nullptr);
+
+        D3D11_VIEWPORT vp = { 0, 0, 512, 512, 0, 1 };
+        _p_device_context->RSSetViewports(1, &vp);
+
+        _p_device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        _p_device_context->IASetInputLayout(_p_input_layout);
+
+        SimpleVertex verts[6][4] = {
+            { { { 0.5f, -0.5f, 0.5f } }, { { 0.5f, 0.5f, 0.5f } }, { { 0.5f, 0.5f, -0.5f } }, { { 0.5f, -0.5f, -0.5f } } },
+            { { { -0.5f, -0.5f, -0.5f } }, { { -0.5f, 0.5f, -0.5f } }, { { -0.5f, 0.5f, 0.5f } }, { { -0.5f, -0.5f, 0.5f } } },
+            { { { -0.5f, 0.5f, 0.5f } }, { { -0.5f, 0.5f, -0.5f } }, { { 0.5f, 0.5f, -0.5f } }, { { 0.5f, 0.5f, 0.5f } } },
+            { { { -0.5f, -0.5f, -0.5f } }, { { -0.5f, -0.5f, 0.5f } }, { { 0.5f, -0.5f, 0.5f } }, { { 0.5f, -0.5f, -0.5f } } },
+            { { { -0.5f, -0.5f, 0.5f } }, { { -0.5f, 0.5f, 0.5f } }, { { 0.5f, 0.5f, 0.5f } }, { { 0.5f, -0.5f, 0.5f } } },
+            { { { 0.5f, -0.5f, -0.5f } }, { { 0.5f, 0.5f, -0.5f } }, { { -0.5f, 0.5f, -0.5f } }, { { -0.5f, -0.5f, -0.5f } } }
+        };
+
+        unsigned inds[6] = {
+            0, 1, 2,
+            2, 3, 0
+        };
+
+        auto p_index_buffer = createBuffer(_p_device, sizeof(unsigned) * 6, D3D11_BIND_INDEX_BUFFER, inds);
+        _p_device_context->IASetIndexBuffer(p_index_buffer, DXGI_FORMAT_R32_UINT, 0);
+        p_index_buffer->Release();
+
+        DirectX::XMVECTOR dirs[6] = {
+            { 1, 0, 0 },
+            { -1, 0, 0 },
+            { 0, 1, 0 },
+            { 0, -1, 0 },
+            { 0, 0, 1 },
+            { 0, 0, -1 }
+        };
+
+        DirectX::XMVECTOR ups[6] = {
+            { 0, 1, 0 },
+            { 0, 1, 0 },
+            { 0, 0, -1 },
+            { 0, 0, 1 },
+            { 0, 1, 0 },
+            { 0, 1, 0 }
+        };
+
+        _p_device_context->VSSetShader(_p_vertex_shader, nullptr, 0);
+        _p_device_context->PSSetShader(_p_pixel_shader_cube_map, nullptr, 0);
+
+        _p_device_context->PSSetShaderResources(0, 1, &p_smrv);
+        _p_device_context->PSSetSamplers(0, 1, &_p_sampler_linear);
+
+        GeometryOperatorsCB geometry_cbuffer;
+        geometry_cbuffer._world = DirectX::XMMatrixTranspose(DirectX::XMMatrixIdentity());
+        geometry_cbuffer._projection = DirectX::XMMatrixTranspose(DirectX::XMMatrixPerspectiveFovLH(DirectX::XM_PIDIV2, 1, 0.01f, 1));
+
+        for (size_t i = 0; i < 6; ++i) {
+            auto p_vertex_buffer = createBuffer(_p_device, sizeof(SimpleVertex) * 4, D3D11_BIND_VERTEX_BUFFER, verts[i]);
+            _p_device_context->IASetVertexBuffers(0, 1, &p_vertex_buffer, &_vertex_stride, &_vertex_offset);
+            p_vertex_buffer->Release();
+
+            Camera camera({ 0.0f, 0.0f, 0.0f }, dirs[i], ups[i]);
+            geometry_cbuffer._view = DirectX::XMMatrixTranspose(camera.getViewMatrix());
+            _p_device_context->UpdateSubresource(_p_geometry_cbuffer, 0, nullptr, &geometry_cbuffer, 0, 0);
+            _p_device_context->VSSetConstantBuffers(0, 1, &_p_geometry_cbuffer);
+            _p_device_context->PSSetConstantBuffers(0, 1, &_p_geometry_cbuffer);
+
+            _p_device_context->ClearRenderTargetView(p_rtv, DirectX::Colors::Black);
+            _p_device_context->DrawIndexed(6, 0, 0);
+            _p_device_context->CopySubresourceRegion(p_sm_texture, (UINT)i, 0, 0, 0, rt.GetRenderTarget(), 0, nullptr);
+        }
+
+        _p_device_context->PSSetShaderResources(0, _s_MAX_NUM_SHADER_RESOURCE_VIEWS, _null_shader_resource_views);
+
+        smrv_desc = CD3D11_SHADER_RESOURCE_VIEW_DESC(D3D11_SRV_DIMENSION_TEXTURECUBE, sm_desc.Format, 0, 1);
+        _p_device->CreateShaderResourceView(p_sm_texture, &smrv_desc, &_p_smrv);
+
+        p_sm_texture->Release();
+        p_smrv->Release();
     }
 
     void Renderer::render() {
@@ -646,6 +752,7 @@ namespace rendering {
         _p_pixel_shader_geometry->Release();
         _p_pixel_shader_fresnel->Release();
 
+        _p_pixel_shader_cube_map->Release();
         _p_pixel_shader_copy->Release();
         _p_pixel_shader_log_luminance->Release();
         _p_pixel_shader_tone_mapping->Release();

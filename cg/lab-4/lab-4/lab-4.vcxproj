@@ -148,9 +148,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Camera.cpp" />
-    <ClCompile Include="DDSTextureLoader\DDSTextureLoader.cpp" />
-    <ClCompile Include="DDSTextureLoader\DirectXHelpers.cpp" />
-    <ClCompile Include="DDSTextureLoader\pch.cpp" />
     <ClCompile Include="ImGui\imgui.cpp" />
     <ClCompile Include="ImGui\imgui_draw.cpp" />
     <ClCompile Include="ImGui\imgui_impl_dx11.cpp" />
@@ -183,13 +180,6 @@
   <ItemGroup>
     <ClInclude Include="Camera.h" />
     <ClInclude Include="ConstantBuffer.h" />
-    <ClInclude Include="DDSTextureLoader\DDS.h" />
-    <ClInclude Include="DDSTextureLoader\DDSTextureLoader.h" />
-    <ClInclude Include="DDSTextureLoader\DirectXHelpers.h" />
-    <ClInclude Include="DDSTextureLoader\Effects.h" />
-    <ClInclude Include="DDSTextureLoader\LoaderHelpers.h" />
-    <ClInclude Include="DDSTextureLoader\pch.h" />
-    <ClInclude Include="DDSTextureLoader\PlatformHelpers.h" />
     <ClInclude Include="ImGui\imconfig.h" />
     <ClInclude Include="ImGui\imgui.h" />
     <ClInclude Include="ImGui\imgui_impl_dx11.h" />
