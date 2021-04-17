@@ -413,6 +413,8 @@ namespace rendering {
         _p_device_context->PSSetShader(_p_pixel_shader_cube_map, nullptr, 0);
 
         _p_device_context->PSSetShaderResources(0, 1, &p_smrv);
+        p_smrv->Release();
+
         _p_device_context->PSSetSamplers(0, 1, &_p_sampler_linear);
 
         GeometryOperatorsCB geometry_cbuffer;
@@ -428,7 +430,6 @@ namespace rendering {
             geometry_cbuffer._view = DirectX::XMMatrixTranspose(camera.getViewMatrix());
             _p_device_context->UpdateSubresource(_p_geometry_cbuffer, 0, nullptr, &geometry_cbuffer, 0, 0);
             _p_device_context->VSSetConstantBuffers(0, 1, &_p_geometry_cbuffer);
-            _p_device_context->PSSetConstantBuffers(0, 1, &_p_geometry_cbuffer);
 
             _p_device_context->ClearRenderTargetView(p_rtv, DirectX::Colors::Black);
             _p_device_context->DrawIndexed(6, 0, 0);
@@ -439,9 +440,7 @@ namespace rendering {
 
         smrv_desc = CD3D11_SHADER_RESOURCE_VIEW_DESC(D3D11_SRV_DIMENSION_TEXTURECUBE, sm_desc.Format, 0, 1);
         _p_device->CreateShaderResourceView(p_sm_texture, &smrv_desc, &_p_smrv);
-
         p_sm_texture->Release();
-        p_smrv->Release();
     }
 
     void Renderer::render() {
