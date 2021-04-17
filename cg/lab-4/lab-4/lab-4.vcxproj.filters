@@ -22,6 +22,9 @@
     <Filter Include="ImGui">
       <UniqueIdentifier>{6242c7bc-2487-4548-93d4-d75971c0f914}</UniqueIdentifier>
     </Filter>
+    <Filter Include="STBImage">
+      <UniqueIdentifier>{2283811c-18be-45ec-a350-404fbc512dc6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -148,6 +151,9 @@
     </ClInclude>
     <ClInclude Include="RenderModes.h">
       <Filter>Файлы заголовков</Filter>
+    </ClInclude>
+    <ClInclude Include="STBImage\stb_image.h">
+      <Filter>STBImage</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

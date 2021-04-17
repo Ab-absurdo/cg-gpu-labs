@@ -205,6 +205,7 @@
     <ClInclude Include="PointLight.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="SimpleVertex.h" />
+    <ClInclude Include="STBImage\stb_image.h" />
     <ClInclude Include="WorldBorders.h" />
   </ItemGroup>
   <ItemGroup>
