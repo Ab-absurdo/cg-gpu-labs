@@ -248,8 +248,8 @@ float4 psCubeMap(VsOut input) : SV_TARGET{
 
 float4 psIrradianceMap(VsOut input) : SV_TARGET{
     float3 normal = normalize(input._position_world.xyz);
-    // По умолчанию, "вперед" - это вперед, кроме случая, когда сама нормаль
-    // направлена вперед или назад, тогда "вперед" - это вправо =)
+    // РџРѕ СѓРјРѕР»С‡Р°РЅРёСЋ, "РІРїРµСЂРµРґ" - СЌС‚Рѕ РІРїРµСЂРµРґ, РєСЂРѕРјРµ СЃР»СѓС‡Р°СЏ, РєРѕРіРґР° СЃР°РјР° РЅРѕСЂРјР°Р»СЊ
+    // РЅР°РїСЂР°РІР»РµРЅР° РІРїРµСЂРµРґ РёР»Рё РЅР°Р·Р°Рґ, С‚РѕРіРґР° "РІРїРµСЂРµРґ" - СЌС‚Рѕ РІРїСЂР°РІРѕ =)
     float3 dir = abs(normal.z) < 0.999 ? float3(0.0, 0.0, 1.0) : float3(1.0, 0.0, 0.0);
     float3 tangent = normalize(cross(dir, normal));
     float3 bitangent = cross(normal, tangent);
@@ -258,9 +258,9 @@ float4 psIrradianceMap(VsOut input) : SV_TARGET{
         for (int j = 0; j < N2; j++) {
             float phi = i * (2 * PI / N1);
             float theta = j * (PI / 2 / N2);
-            // Перевод сферических координат в декартовы (в касательном пространстве)
+            // РџРµСЂРµРІРѕРґ СЃС„РµСЂРёС‡РµСЃРєРёС… РєРѕРѕСЂРґРёРЅР°С‚ РІ РґРµРєР°СЂС‚РѕРІС‹ (РІ РєР°СЃР°С‚РµР»СЊРЅРѕРј РїСЂРѕСЃС‚СЂР°РЅСЃС‚РІРµ)
             float3 tangentSample = float3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
-            // ... и из касательного пространства в мировое
+            // ... Рё РёР· РєР°СЃР°С‚РµР»СЊРЅРѕРіРѕ РїСЂРѕСЃС‚СЂР°РЅСЃС‚РІР° РІ РјРёСЂРѕРІРѕРµ
             float3 sampleVec = tangentSample.x * tangent + tangentSample.y * bitangent + tangentSample.z * normal;
             irradiance += _sky_map.Sample(_sam_linear, sampleVec).rgb * cos(theta) * sin(theta);
         }
