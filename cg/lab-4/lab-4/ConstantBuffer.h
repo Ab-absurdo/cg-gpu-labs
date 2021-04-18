@@ -23,7 +23,6 @@ namespace rendering {
 
     __declspec(align(16))
     struct LightsCB {
-        DirectX::XMFLOAT4 _ambient_light;
         DirectX::XMFLOAT4 _light_pos[N_LIGHTS];
         DirectX::XMFLOAT4 _light_color[N_LIGHTS];
         DirectX::XMFLOAT4 _light_attenuation[N_LIGHTS];

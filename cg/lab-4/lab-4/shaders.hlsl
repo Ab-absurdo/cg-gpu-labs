@@ -29,7 +29,6 @@ cbuffer SurfaceProps : register(b1)
 
 cbuffer Lights : register(b2)
 {
-    float4 _ambient_light;
     float4 _light_pos[N_LIGHTS];
     float4 _light_color[N_LIGHTS];
     float4 _light_attenuation[N_LIGHTS];
@@ -144,7 +143,7 @@ float3 ambient(float3 camera_dir, float3 normal)
 }
 
 float4 psLambert(VsOut input) : SV_TARGET{
-    float3 color = _base_color.rgb + _ambient_light.rgb;
+    float3 color = _base_color.rgb;
     for (int i = 0; i < N_LIGHTS; i++)
     {
         color += projectedRadiance(i, input._position_world.xyz, input._normal_world);
@@ -193,7 +192,7 @@ float4 psFresnel(VsOut input) : SV_TARGET{
 float4 psPBR(VsOut input) : SV_TARGET{
     const float3 pos = input._position_world.xyz;
     const float3 camera_dir = normalize(_camera_pos.xyz - pos);
-    float3 color = _base_color.rgb + _ambient_light.rgb;
+    float3 color = _base_color.rgb;
     for (int i = 0; i < N_LIGHTS; i++)
     {
         const float3 light_dir = normalize(_light_pos[i].xyz - pos);

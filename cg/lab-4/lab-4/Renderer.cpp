@@ -366,8 +366,6 @@ namespace rendering {
         DirectX::XMVECTOR dir = DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
         _camera = Camera(pos, dir);
 
-        _ambient_light = (DirectX::XMFLOAT4)DirectX::Colors::Black;
-
         _lights[0]._pos = { 0.0f, 3.0f, -2.0f, 0.0f };
         _lights[0]._color = (DirectX::XMFLOAT4)DirectX::Colors::White;
 
@@ -515,7 +513,6 @@ namespace rendering {
             _p_device_context->UpdateSubresource(_p_sprops_cbuffer, 0, nullptr, &sprops_cbuffer, 0, 0);
 
             LightsCB lights_cbuffer;
-            lights_cbuffer._ambient_light = _ambient_light;
             for (int i = 0; i < N_LIGHTS; i++)
             {
                 lights_cbuffer._light_pos[i] = _lights[i]._pos;

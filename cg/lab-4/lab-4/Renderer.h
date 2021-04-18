@@ -84,7 +84,6 @@ namespace rendering {
         WorldBorders _borders;
         Camera _camera;
         PointLight _lights[N_LIGHTS];
-        DirectX::XMFLOAT4 _ambient_light;
         float _sphere_color_rgb[4];
         DirectX::XMFLOAT4 _sphere_color_srgb;
         float _roughness = 0.0f;
