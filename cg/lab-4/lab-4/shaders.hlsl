@@ -110,6 +110,14 @@ float3 fresnelFunction(float3 camera_dir, float3 halfway)
     return F0 + (1.0f - F0) * pow(1.0f - dot_multiplier, 5);
 }
 
+float3 fresnelFunctionAmbient(float3 camera_dir, float3 normal)
+{
+    const float3 F0_noncond = 0.04f;
+    const float3 F0 = (1.0 - _metalness) * F0_noncond + _metalness * _base_color.rgb;
+    const float dot_multiplier = saturate(dot(camera_dir, normal));
+    return F0 + (max(1.0f - _roughness, F0) - F0) * pow(1.0f - dot_multiplier, 5);
+}
+
 float3 brdf(float3 normal, float3 light_dir, float3 camera_dir)
 {
     const float3 halfway = normalize(camera_dir + light_dir);
@@ -124,6 +132,16 @@ float3 brdf(float3 normal, float3 light_dir, float3 camera_dir)
     return f_lamb + f_ct;
 }
 
+float3 ambient(float3 camera_dir, float3 normal)
+{
+    float3 F = fresnelFunctionAmbient(camera_dir, normal);
+    float3 kS = F;
+    float3 kD = float3(1.0, 1.0, 1.0) - kS;
+    kD *= 1.0 - _metalness;
+    float3 irradiance = _sky_map.Sample(_sam_linear, normal).rgb;
+    float3 diffuse = irradiance * _base_color.xyz;
+    return kD * diffuse;
+}
 
 float4 psLambert(VsOut input) : SV_TARGET{
     float3 color = _base_color.rgb + _ambient_light.rgb;
@@ -183,6 +201,7 @@ float4 psPBR(VsOut input) : SV_TARGET{
         const float3 radiance = projectedRadiance(i, pos, input._normal_world);
         color += radiance * brdf(input._normal_world, light_dir, camera_dir);
     }
+    color += ambient(camera_dir, input._normal_world);
     return float4(color, _base_color.a);
 }
 

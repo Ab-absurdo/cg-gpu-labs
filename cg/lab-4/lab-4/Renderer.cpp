@@ -534,6 +534,9 @@ namespace rendering {
             _p_device_context->PSSetConstantBuffers(2, 1, &_p_lights_cbuffer);
             _p_device_context->PSSetConstantBuffers(3, 1, &_p_adaptation_cbuffer);
 
+            _p_device_context->PSSetShaderResources(0, 1, &_p_smrv_irradiance);
+            _p_device_context->PSSetSamplers(0, 1, &_p_sampler_linear);
+
             _p_annotation->BeginEvent(L"Draw");
             _p_device_context->DrawIndexed(_indices_number, 0, 0);
             _p_device_context->PSSetShaderResources(0, _s_MAX_NUM_SHADER_RESOURCE_VIEWS, _null_shader_resource_views);
@@ -554,7 +557,7 @@ namespace rendering {
             _p_device_context->VSSetConstantBuffers(0, 1, &_p_geometry_cbuffer);
             _p_device_context->PSSetShader(_p_skymap_ps, nullptr, 0);
 
-            _p_device_context->PSSetShaderResources(0, 1, &_p_smrv_irradiance);
+            _p_device_context->PSSetShaderResources(0, 1, &_p_smrv_sky);
             _p_device_context->PSSetSamplers(0, 1, &_p_sampler_linear);
 
             _p_device_context->DrawIndexed(_env_indices_number, 0, 0);
