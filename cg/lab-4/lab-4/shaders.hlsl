@@ -2,6 +2,9 @@ static const float PI = 3.14159265f;
 static const float EPSILON = 1e-3f;
 static const int N_LIGHTS = 1;
 
+static const int N1 = 800;
+static const int N2 = 200;
+
 Texture2D _tx_diffuse : register(t0);
 
 TextureCube _sky_map : register(t0);
@@ -241,6 +244,29 @@ float4 psCubeMap(VsOut input) : SV_TARGET{
     float u = 1.0 - atan2(n.z, n.x) / (2 * PI);
     float v = 0.5 - asin(n.y) / PI;
     return _tx_diffuse.Sample(_sam_linear, float2(u, v));
+}
+
+float4 psIrradianceMap(VsOut input) : SV_TARGET{
+    float3 normal = normalize(input._position_world.xyz);
+    // По умолчанию, "вперед" - это вперед, кроме случая, когда сама нормаль
+    // направлена вперед или назад, тогда "вперед" - это вправо =)
+    float3 dir = abs(normal.z) < 0.999 ? float3(0.0, 0.0, 1.0) : float3(1.0, 0.0, 0.0);
+    float3 tangent = normalize(cross(dir, normal));
+    float3 bitangent = cross(normal, tangent);
+    float3 irradiance = float3(0.0, 0.0, 0.0);
+    for (int i = 0; i < N1; i++) {
+        for (int j = 0; j < N2; j++) {
+            float phi = i * (2 * PI / N1);
+            float theta = j * (PI / 2 / N2);
+            // Перевод сферических координат в декартовы (в касательном пространстве)
+            float3 tangentSample = float3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
+            // ... и из касательного пространства в мировое
+            float3 sampleVec = tangentSample.x * tangent + tangentSample.y * bitangent + tangentSample.z * normal;
+            irradiance += _sky_map.Sample(_sam_linear, sampleVec).rgb * cos(theta) * sin(theta);
+        }
+    }
+    irradiance = PI * irradiance / (N1 * N2);
+    return float4(irradiance, 1);
 }
 
 VsSkymapOut vsSkymap(VsIn input) {
