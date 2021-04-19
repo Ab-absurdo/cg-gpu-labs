@@ -5,9 +5,9 @@ static const int N_LIGHTS = 1;
 static const int N1 = 800;
 static const int N2 = 200;
 
-Texture2D _tx_diffuse : register(t0);
+Texture2D _texture_2d : register(t0);
 
-TextureCube _sky_map : register(t0);
+TextureCube _texture_cube : register(t0);
 
 SamplerState _sam_linear : register(s0);
 
@@ -137,7 +137,7 @@ float3 ambient(float3 camera_dir, float3 normal)
     float3 kS = F;
     float3 kD = float3(1.0, 1.0, 1.0) - kS;
     kD *= 1.0 - _metalness;
-    float3 irradiance = _sky_map.Sample(_sam_linear, normal).rgb;
+    float3 irradiance = _texture_cube.Sample(_sam_linear, normal).rgb;
     float3 diffuse = irradiance * _base_color.xyz;
     return kD * diffuse;
 }
@@ -213,11 +213,11 @@ VsCopyOut vsCopyMain(uint input : SV_VERTEXID) {
 }
 
 float4 psCopyMain(VsCopyOut input) : SV_TARGET {
-    return _tx_diffuse.Sample(_sam_linear, input._tex);
+    return _texture_2d.Sample(_sam_linear, input._tex);
 }
 
 float4 psLogLuminanceMain(VsCopyOut input) : SV_TARGET {
-    float4 p = _tx_diffuse.Sample(_sam_linear, input._tex);
+    float4 p = _texture_2d.Sample(_sam_linear, input._tex);
     float l = 0.2126 * p.r + 0.7151 * p.g + 0.0722 * p.b;
     return log(l + 1);
 }
@@ -253,7 +253,7 @@ float3 tonemapFilmic(float3 color)
 }
 
 float4 psToneMappingMain(VsCopyOut input) : SV_TARGET {
-    float4 color = _tx_diffuse.Sample(_sam_linear, input._tex);
+    float4 color = _texture_2d.Sample(_sam_linear, input._tex);
     return float4(pow(tonemapFilmic(color.xyz), 1 / 2.2), color.a);
 }
 
@@ -261,7 +261,7 @@ float4 psCubeMap(VsOut input) : SV_TARGET{
     float3 n = normalize(input._position_world.xyz);
     float u = 1.0 - atan2(n.z, n.x) / (2 * PI);
     float v = 0.5 - asin(n.y) / PI;
-    return _tx_diffuse.Sample(_sam_linear, float2(u, v));
+    return _texture_2d.Sample(_sam_linear, float2(u, v));
 }
 
 float4 psIrradianceMap(VsOut input) : SV_TARGET{
@@ -280,7 +280,7 @@ float4 psIrradianceMap(VsOut input) : SV_TARGET{
             float3 tangentSample = float3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
             // ... и из касательного пространства в мировое
             float3 sampleVec = tangentSample.x * tangent + tangentSample.y * bitangent + tangentSample.z * normal;
-            irradiance += _sky_map.Sample(_sam_linear, sampleVec).rgb * cos(theta) * sin(theta);
+            irradiance += _texture_cube.Sample(_sam_linear, sampleVec).rgb * cos(theta) * sin(theta);
         }
     }
     irradiance = PI * irradiance / (N1 * N2);
@@ -298,5 +298,5 @@ VsSkymapOut vsSkymap(VsIn input) {
 }
 
 float4 psSkymap(VsSkymapOut input) : SV_TARGET {
-    return _sky_map.Sample(_sam_linear, input._tex);
+    return _texture_cube.Sample(_sam_linear, input._tex);
 }
