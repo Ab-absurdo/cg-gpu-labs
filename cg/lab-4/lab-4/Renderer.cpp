@@ -357,6 +357,7 @@ namespace rendering {
         _vertex_stride = sizeof(SimpleVertex);
         _vertex_offset = 0;
 
+        _exposure_scale = 10;
         const float SPHERE_COLOR_RGB[4] = { 0.2f, 0.0f, 0.0f, 1.0f };
         memcpy(_sphere_color_rgb, SPHERE_COLOR_RGB, sizeof(float) * 4);
         _roughness = 0.3f;
@@ -609,6 +610,7 @@ namespace rendering {
                 _adapted_log_luminance += (average_log_luminance - _adapted_log_luminance) * (1 - expf(-delta_t / s));
 
                 AdaptationCB adaptation_cbuffer;
+                adaptation_cbuffer._exposure_scale = _exposure_scale;
                 adaptation_cbuffer._adapted_log_luminance = _adapted_log_luminance;
 
 
@@ -625,6 +627,7 @@ namespace rendering {
             ImGui::NewFrame();
             ImGui::Begin("Scene parameters");
             ImGui::Text("Scene");
+            ImGui::SliderFloat("Exposure scale", &_exposure_scale, 0, 20);
             ImGui::ListBox("Render mode", (int*)(&_render_mode), _render_modes, _s_RENDER_MODES_NUMBER);
             ImGui::Text("Object");
             ImGui::SliderFloat("Roughness", &_roughness, 0, 1);

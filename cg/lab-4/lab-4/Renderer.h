@@ -84,10 +84,11 @@ namespace rendering {
         WorldBorders _borders;
         Camera _camera;
         PointLight _lights[N_LIGHTS];
+        float _exposure_scale;
         float _sphere_color_rgb[4];
         DirectX::XMFLOAT4 _sphere_color_srgb;
-        float _roughness = 0.0f;
-        float _metalness = 0.0f;
+        float _roughness;
+        float _metalness;
 
 
         UINT _vertex_stride;

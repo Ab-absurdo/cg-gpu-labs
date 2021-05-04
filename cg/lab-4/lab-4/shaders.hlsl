@@ -23,7 +23,7 @@ cbuffer GeometryOperators : register(b0)
 cbuffer SurfaceProps : register(b1)
 {
     float4 _base_color; // albedo
-    float _roughness;   // aplpha
+    float _roughness;   // alpha
     float _metalness;
 };
 
@@ -36,7 +36,7 @@ cbuffer Lights : register(b2)
 };
 
 cbuffer Adaptation : register(b3) {
-
+    float _exposure_scale;
     float _adapted_log_luminance;
 };
 
@@ -246,7 +246,7 @@ float exposure() {
 
 float3 tonemapFilmic(float3 color)
 {
-    float e = exposure();
+    float e = exposure() * _exposure_scale;
     float3 curr = uncharted2Tonemap(e * color);
     float3 white_scale = 1.0f / uncharted2Tonemap(w);
     return curr * white_scale;
