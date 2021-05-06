@@ -76,8 +76,7 @@ float3 projectedRadiance(int index, float3 pos, float3 normal) // L_i * (l, n)
     const float3 light_dir = _light_pos[index].xyz - pos;
     const float dist = length(light_dir);
     const float dot_multiplier = pow(saturate(dot(light_dir / dist, normal)), deg);
-    float att = _light_attenuation[index].x + _light_attenuation[index].y * dist;
-    att +=  _light_attenuation[index].z * dist * dist;
+    float att = _light_attenuation[index].x + _light_attenuation[index].y * dist * dist;
     return _light_intensity[index] * dot_multiplier / att * _light_color[index].rgb;
 }
 
@@ -123,62 +122,67 @@ float3 brdf(float3 normal, float3 light_dir, float3 camera_dir)
 
 
 float4 psLambert(VsOut input) : SV_TARGET{
+    const float3 normal = normalize(input._normal_world);
     float3 color = _base_color.rgb + _ambient_light.rgb;
     for (int i = 0; i < N_LIGHTS; i++)
     {
-        color += projectedRadiance(i, input._position_world.xyz, input._normal_world);
+        color += projectedRadiance(i, input._position_world.xyz, normal);
     }
     return float4(color, _base_color.a);
 }
 
 float4 psNDF(VsOut input) : SV_TARGET {
     const float3 pos = input._position_world.xyz;
+    const float3 normal = normalize(input._normal_world);
     const float3 camera_dir = normalize(_camera_pos.xyz - pos);
     float color_grayscale = 0.0f;
     for (int i = 0; i < N_LIGHTS; i++)
     {
         const float3 light_dir = normalize(_light_pos[i].xyz - pos);
         const float3 halfway = normalize(camera_dir + light_dir);
-        color_grayscale += ndf(input._normal_world, halfway);
+        color_grayscale += ndf(normal, halfway);
     }
     return color_grayscale;
 }
 
 float4 psGeometry(VsOut input) : SV_TARGET{
     const float3 pos = input._position_world.xyz;
+    const float3 normal = normalize(input._normal_world);
     const float3 camera_dir = normalize(_camera_pos.xyz - pos);
     float color_grayscale = 0.0f;
     for (int i = 0; i < N_LIGHTS; i++)
     {
         const float3 light_dir = normalize(_light_pos[i].xyz - pos);
-        color_grayscale += geometryFunction2dir(input._normal_world, light_dir, camera_dir);
+        color_grayscale += geometryFunction2dir(normal, light_dir, camera_dir);
     }
     return color_grayscale;
 }
 
 float4 psFresnel(VsOut input) : SV_TARGET{
     const float3 pos = input._position_world.xyz;
+    const float3 normal = normalize(input._normal_world);
     const float3 camera_dir = normalize(_camera_pos.xyz - pos);
     float3 color = 0.0f;
     for (int i = 0; i < N_LIGHTS; i++)
     {
         const float3 light_dir = normalize(_light_pos[i].xyz - pos);
         const float3 halfway = normalize(camera_dir + light_dir);
-        color += fresnelFunction(camera_dir, halfway) * (dot(light_dir, input._normal_world) > 0.0f);
+        color += fresnelFunction(camera_dir, halfway) * (dot(light_dir, normal) > 0.0f);
     }
     return float4(color, _base_color.a);
 }
 
 float4 psPBR(VsOut input) : SV_TARGET{
     const float3 pos = input._position_world.xyz;
+    const float3 normal = normalize(input._normal_world);
     const float3 camera_dir = normalize(_camera_pos.xyz - pos);
     float3 color = _base_color.rgb + _ambient_light.rgb;
     for (int i = 0; i < N_LIGHTS; i++)
     {
         const float3 light_dir = normalize(_light_pos[i].xyz - pos);
         const float3 halfway = normalize(camera_dir + light_dir);
-        const float3 radiance = projectedRadiance(i, pos, input._normal_world);
-        color += radiance * brdf(input._normal_world, light_dir, camera_dir);
+        const float3 radiance = projectedRadiance(i, pos, normal);
+        color += radiance * brdf(normal, light_dir, camera_dir);
     }
     return float4(color, _base_color.a);
 }
