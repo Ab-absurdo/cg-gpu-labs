@@ -11,9 +11,8 @@ namespace rendering {
         DirectX::XMFLOAT4 _pos;
         DirectX::XMFLOAT4 _color;
 
-        float _const_att = 0.1f;
-        float _lin_att = 1.0f;
-        float _exp_att = 1.0f;
+        float _const_att = 1.0f;
+        float _quadratic_att = 1.3f;
 
     private:
         float _intensities[3] = { 1.0f, 10.0f, 100.0f };
