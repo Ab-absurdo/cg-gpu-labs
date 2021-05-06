@@ -408,7 +408,7 @@ namespace rendering {
             {
                 lights_cbuffer._light_pos[i] = _lights[i]._pos;
                 lights_cbuffer._light_color[i] = _lights[i]._color;
-                DirectX::XMFLOAT4 att(_lights[i]._const_att, _lights[i]._lin_att, _lights[i]._exp_att, 0.0f);
+                DirectX::XMFLOAT4 att(_lights[i]._const_att, _lights[i]._quadratic_att, 0.0f, 0.0f);
                 lights_cbuffer._light_attenuation[i] = att;
                 lights_cbuffer._light_intensity[4 * i] = _lights[i].getIntensity();
             }
