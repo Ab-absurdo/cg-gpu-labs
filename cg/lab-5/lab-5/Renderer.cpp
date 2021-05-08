@@ -189,6 +189,7 @@ namespace rendering {
 
         _p_pixel_shader_cube_map = createPixelShader(_p_device, L"../../lab-5/shaders.hlsl", "psCubeMap", "ps_5_0", flags);
         _p_pixel_shader_irradiance_map = createPixelShader(_p_device, L"../../lab-5/shaders.hlsl", "psIrradianceMap", "ps_5_0", flags);
+        _p_pixel_shader_prefiltered_color = createPixelShader(_p_device, L"../../lab-5/shaders.hlsl", "psPrefilteredColor", "ps_5_0", flags);
 
         _p_vertex_shader_copy = createVertexShader(_p_device, L"../../lab-5/shaders.hlsl", "vsCopyMain", "vs_5_0", flags);
         _p_pixel_shader_copy = createPixelShader(_p_device, L"../../lab-5/shaders.hlsl", "psCopyMain", "ps_5_0", flags);
@@ -259,20 +260,13 @@ namespace rendering {
         ImGui_ImplDX11_Init(_p_device, _p_device_context);
     }
 
-    void Renderer::createCubeMap(UINT size, ID3D11PixelShader* p_pixel_shader, ID3D11ShaderResourceView** p_p_smrv_src, ID3D11ShaderResourceView** p_p_smrv_dst) {
-        CD3D11_TEXTURE2D_DESC sm_desc(DXGI_FORMAT_R32G32B32A32_FLOAT, size, size, 6, 1, D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_DEFAULT, 0, 1, 0, D3D11_RESOURCE_MISC_TEXTURECUBE);
+    void Renderer::createCubeMap(UINT size, UINT mip_levels, ID3D11PixelShader* p_pixel_shader, ID3D11ShaderResourceView** p_p_smrv_src, ID3D11ShaderResourceView** p_p_smrv_dst) {
+        CD3D11_TEXTURE2D_DESC sm_desc(DXGI_FORMAT_R32G32B32A32_FLOAT, size, size, 6, mip_levels, D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_DEFAULT, 0, 1, 0, D3D11_RESOURCE_MISC_TEXTURECUBE);
         ID3D11Texture2D* p_sm_texture = nullptr;
         _p_device->CreateTexture2D(&sm_desc, nullptr, &p_sm_texture);
 
         DX::RenderTexture rt;
         rt.SetDevice(_p_device);
-        rt.SizeResources(size, size);
-
-        auto p_rtv = rt.GetRenderTargetView();
-        _p_device_context->OMSetRenderTargets(1, &p_rtv, nullptr);
-
-        D3D11_VIEWPORT vp = { 0, 0, (FLOAT)size, (FLOAT)size, 0, 1 };
-        _p_device_context->RSSetViewports(1, &vp);
 
         _p_device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         _p_device_context->IASetInputLayout(_p_input_layout);
@@ -323,24 +317,39 @@ namespace rendering {
         geometry_cbuffer._world = DirectX::XMMatrixTranspose(DirectX::XMMatrixIdentity());
         geometry_cbuffer._projection = DirectX::XMMatrixTranspose(DirectX::XMMatrixPerspectiveFovLH(DirectX::XM_PIDIV2, 1, 0.01f, 1));
 
-        for (size_t i = 0; i < 6; ++i) {
-            auto p_vertex_buffer = createBuffer(_p_device, sizeof(SimpleVertex) * 4, D3D11_BIND_VERTEX_BUFFER, verts[i]);
-            _p_device_context->IASetVertexBuffers(0, 1, &p_vertex_buffer, &_vertex_stride, &_vertex_offset);
-            p_vertex_buffer->Release();
+        for (size_t mip_level = 0; mip_level < mip_levels; ++mip_level) {
+            rt.SizeResources(size >> mip_level, size >> mip_level);
 
-            Camera camera({ 0.0f, 0.0f, 0.0f }, dirs[i], ups[i]);
-            geometry_cbuffer._view = DirectX::XMMatrixTranspose(camera.getViewMatrix());
-            _p_device_context->UpdateSubresource(_p_geometry_cbuffer, 0, nullptr, &geometry_cbuffer, 0, 0);
-            _p_device_context->VSSetConstantBuffers(0, 1, &_p_geometry_cbuffer);
+            auto p_rtv = rt.GetRenderTargetView();
+            _p_device_context->OMSetRenderTargets(1, &p_rtv, nullptr);
 
-            _p_device_context->ClearRenderTargetView(p_rtv, DirectX::Colors::Black);
-            _p_device_context->DrawIndexed(6, 0, 0);
-            _p_device_context->CopySubresourceRegion(p_sm_texture, (UINT)i, 0, 0, 0, rt.GetRenderTarget(), 0, nullptr);
+            D3D11_VIEWPORT vp = { 0, 0, (FLOAT)(size >> mip_level), (FLOAT)(size >> mip_level), 0, 1 };
+            _p_device_context->RSSetViewports(1, &vp);
+
+            SurfacePropsCB sprops_cbuffer;
+            sprops_cbuffer._roughness = (float)mip_level / (mip_levels - 1);
+            _p_device_context->UpdateSubresource(_p_sprops_cbuffer, 0, nullptr, &sprops_cbuffer, 0, 0);
+            _p_device_context->PSSetConstantBuffers(1, 1, &_p_sprops_cbuffer);
+
+            for (size_t i = 0; i < 6; ++i) {
+                auto p_vertex_buffer = createBuffer(_p_device, sizeof(SimpleVertex) * 4, D3D11_BIND_VERTEX_BUFFER, verts[i]);
+                _p_device_context->IASetVertexBuffers(0, 1, &p_vertex_buffer, &_vertex_stride, &_vertex_offset);
+                p_vertex_buffer->Release();
+
+                Camera camera({ 0.0f, 0.0f, 0.0f }, dirs[i], ups[i]);
+                geometry_cbuffer._view = DirectX::XMMatrixTranspose(camera.getViewMatrix());
+                _p_device_context->UpdateSubresource(_p_geometry_cbuffer, 0, nullptr, &geometry_cbuffer, 0, 0);
+                _p_device_context->VSSetConstantBuffers(0, 1, &_p_geometry_cbuffer);
+
+                _p_device_context->ClearRenderTargetView(p_rtv, DirectX::Colors::Black);
+                _p_device_context->DrawIndexed(6, 0, 0);
+                _p_device_context->CopySubresourceRegion(p_sm_texture, (UINT)(i * mip_levels + mip_level), 0, 0, 0, rt.GetRenderTarget(), 0, nullptr);
+            }
         }
 
         _p_device_context->PSSetShaderResources(0, _s_MAX_NUM_SHADER_RESOURCE_VIEWS, _null_shader_resource_views);
 
-        CD3D11_SHADER_RESOURCE_VIEW_DESC smrv_desc(D3D11_SRV_DIMENSION_TEXTURECUBE, sm_desc.Format, 0, 1);
+        CD3D11_SHADER_RESOURCE_VIEW_DESC smrv_desc(D3D11_SRV_DIMENSION_TEXTURECUBE, sm_desc.Format, 0, sm_desc.MipLevels);
         _p_device->CreateShaderResourceView(p_sm_texture, &smrv_desc, p_p_smrv_dst);
         p_sm_texture->Release();
     }
@@ -357,6 +366,7 @@ namespace rendering {
         _vertex_stride = sizeof(SimpleVertex);
         _vertex_offset = 0;
 
+        _exposure_scale = 10;
         const float SPHERE_COLOR_RGB[4] = { 0.2f, 0.0f, 0.0f, 1.0f };
         memcpy(_sphere_color_rgb, SPHERE_COLOR_RGB, sizeof(float) * 4);
         _roughness = 0.3f;
@@ -373,12 +383,10 @@ namespace rendering {
 
         _p_index_buffer = createBuffer(_p_device, sizeof(unsigned) * _indices_number, D3D11_BIND_INDEX_BUFFER, indices.data());
 
-       
         _p_geometry_cbuffer = createBuffer(_p_device, sizeof(GeometryOperatorsCB), D3D11_BIND_CONSTANT_BUFFER, nullptr);
         _p_sprops_cbuffer = createBuffer(_p_device, sizeof(SurfacePropsCB), D3D11_BIND_CONSTANT_BUFFER, nullptr);
         _p_lights_cbuffer = createBuffer(_p_device, sizeof(LightsCB), D3D11_BIND_CONSTANT_BUFFER, nullptr);
         _p_adaptation_cbuffer = createBuffer(_p_device, sizeof(AdaptationCB), D3D11_BIND_CONSTANT_BUFFER, nullptr);
-       
 
         D3D11_SAMPLER_DESC samp_desc;
         ZeroMemory(&samp_desc, sizeof(samp_desc));
@@ -442,10 +450,12 @@ namespace rendering {
         assert(SUCCEEDED(hr));
         p_sm_texture->Release();
 
-        createCubeMap(512, _p_pixel_shader_cube_map, &p_smrv, &_p_smrv_sky);
+        createCubeMap(512, 10, _p_pixel_shader_cube_map, &p_smrv, &_p_smrv_sky);
         p_smrv->Release();
 
-        createCubeMap(32, _p_pixel_shader_irradiance_map, &_p_smrv_sky, &_p_smrv_irradiance);
+        createCubeMap(32, 1, _p_pixel_shader_irradiance_map, &_p_smrv_sky, &_p_smrv_irradiance);
+
+        createCubeMap(128, 5, _p_pixel_shader_prefiltered_color, &_p_smrv_sky, &_p_smrv_prefiltered);
     }
 
     void Renderer::render() {
@@ -517,7 +527,7 @@ namespace rendering {
             {
                 lights_cbuffer._light_pos[i] = _lights[i]._pos;
                 lights_cbuffer._light_color[i] = _lights[i]._color;
-                DirectX::XMFLOAT4 att(_lights[i]._const_att, _lights[i]._lin_att, _lights[i]._exp_att, 0.0f);
+                DirectX::XMFLOAT4 att(_lights[i]._const_att, _lights[i]._quadratic_att, 0.0f, 0.0f);
                 lights_cbuffer._light_attenuation[i] = att;
                 lights_cbuffer._light_intensity[4 * i] = _lights[i].getIntensity();
             }
@@ -609,6 +619,7 @@ namespace rendering {
                 _adapted_log_luminance += (average_log_luminance - _adapted_log_luminance) * (1 - expf(-delta_t / s));
 
                 AdaptationCB adaptation_cbuffer;
+                adaptation_cbuffer._exposure_scale = _exposure_scale;
                 adaptation_cbuffer._adapted_log_luminance = _adapted_log_luminance;
 
 
@@ -625,6 +636,7 @@ namespace rendering {
             ImGui::NewFrame();
             ImGui::Begin("Scene parameters");
             ImGui::Text("Scene");
+            ImGui::SliderFloat("Exposure scale", &_exposure_scale, 0, 20);
             ImGui::ListBox("Render mode", (int*)(&_render_mode), _render_modes, _s_RENDER_MODES_NUMBER);
             ImGui::Text("Object");
             ImGui::SliderFloat("Roughness", &_roughness, 0, 1);
@@ -748,6 +760,7 @@ namespace rendering {
 
         _p_smrv_sky->Release();
         _p_smrv_irradiance->Release();
+        _p_smrv_prefiltered->Release();
 
         _p_vertex_shader->Release();
         _p_vertex_shader_copy->Release();
@@ -761,6 +774,7 @@ namespace rendering {
 
         _p_pixel_shader_cube_map->Release();
         _p_pixel_shader_irradiance_map->Release();
+        _p_pixel_shader_prefiltered_color->Release();
         _p_pixel_shader_copy->Release();
         _p_pixel_shader_log_luminance->Release();
         _p_pixel_shader_tone_mapping->Release();

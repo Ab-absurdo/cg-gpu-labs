@@ -31,6 +31,7 @@ namespace rendering {
 
     __declspec(align(16))
     struct AdaptationCB {
+        float _exposure_scale;
         float _adapted_log_luminance;
     };
 }

@@ -9,7 +9,7 @@ Texture2D _texture_2d : register(t0);
 
 TextureCube _texture_cube : register(t0);
 
-SamplerState _sam_linear : register(s0);
+SamplerState _sam_state : register(s0);
 
 cbuffer GeometryOperators : register(b0)
 {
@@ -23,7 +23,7 @@ cbuffer GeometryOperators : register(b0)
 cbuffer SurfaceProps : register(b1)
 {
     float4 _base_color; // albedo
-    float _roughness;   // aplpha
+    float _roughness;   // alpha
     float _metalness;
 };
 
@@ -36,7 +36,7 @@ cbuffer Lights : register(b2)
 };
 
 cbuffer Adaptation : register(b3) {
-
+    float _exposure_scale;
     float _adapted_log_luminance;
 };
 
@@ -78,15 +78,18 @@ float3 projectedRadiance(int index, float3 pos, float3 normal) // L_i * (l, n)
     const float3 light_dir = _light_pos[index].xyz - pos;
     const float dist = length(light_dir);
     const float dot_multiplier = pow(saturate(dot(light_dir / dist, normal)), deg);
-    float att = _light_attenuation[index].x + _light_attenuation[index].y * dist;
-    att +=  _light_attenuation[index].z * dist * dist;
+    float att = _light_attenuation[index].x + _light_attenuation[index].y * dist * dist;
     return _light_intensity[index] * dot_multiplier / att * _light_color[index].rgb;
 }
 
-float ndf(float3 normal, float3 halfway) { // D (Trowbridge-Reitz GGX)
-    const float roughness_squared = clamp(_roughness * _roughness, EPSILON, 1.0f);
-    const float n_dot_h = saturate(dot(normal, halfway));
+float DistributionGGX(float3 norm, float3 H, float roughness) { // D (Trowbridge-Reitz GGX)
+    const float roughness_squared = clamp(roughness * roughness, EPSILON, 1.0f);
+    const float n_dot_h = saturate(dot(norm, H));
     return roughness_squared / PI / pow(n_dot_h * n_dot_h * (roughness_squared - 1.0f) + 1.0f, 2);
+}
+
+float ndf(float3 normal, float3 halfway) {
+    return DistributionGGX(normal, halfway, _roughness);
 }
 
 float geometryFunction(float3 normal, float3 dir)
@@ -137,70 +140,75 @@ float3 ambient(float3 camera_dir, float3 normal)
     float3 kS = F;
     float3 kD = float3(1.0, 1.0, 1.0) - kS;
     kD *= 1.0 - _metalness;
-    float3 irradiance = _texture_cube.Sample(_sam_linear, normal).rgb;
+    float3 irradiance = _texture_cube.Sample(_sam_state, normal).rgb;
     float3 diffuse = irradiance * _base_color.xyz;
     return kD * diffuse;
 }
 
 float4 psLambert(VsOut input) : SV_TARGET{
+    const float3 normal = normalize(input._normal_world);
     float3 color = _base_color.rgb;
     for (int i = 0; i < N_LIGHTS; i++)
     {
-        color += projectedRadiance(i, input._position_world.xyz, input._normal_world);
+        color += projectedRadiance(i, input._position_world.xyz, normal);
     }
     return float4(color, _base_color.a);
 }
 
 float4 psNDF(VsOut input) : SV_TARGET {
     const float3 pos = input._position_world.xyz;
+    const float3 normal = normalize(input._normal_world);
     const float3 camera_dir = normalize(_camera_pos.xyz - pos);
     float color_grayscale = 0.0f;
     for (int i = 0; i < N_LIGHTS; i++)
     {
         const float3 light_dir = normalize(_light_pos[i].xyz - pos);
         const float3 halfway = normalize(camera_dir + light_dir);
-        color_grayscale += ndf(input._normal_world, halfway);
+        color_grayscale += ndf(normal, halfway);
     }
     return color_grayscale;
 }
 
 float4 psGeometry(VsOut input) : SV_TARGET{
     const float3 pos = input._position_world.xyz;
+    const float3 normal = normalize(input._normal_world);
     const float3 camera_dir = normalize(_camera_pos.xyz - pos);
     float color_grayscale = 0.0f;
     for (int i = 0; i < N_LIGHTS; i++)
     {
         const float3 light_dir = normalize(_light_pos[i].xyz - pos);
-        color_grayscale += geometryFunction2dir(input._normal_world, light_dir, camera_dir);
+        color_grayscale += geometryFunction2dir(normal, light_dir, camera_dir);
     }
     return color_grayscale;
 }
 
 float4 psFresnel(VsOut input) : SV_TARGET{
     const float3 pos = input._position_world.xyz;
+    const float3 normal = normalize(input._normal_world);
     const float3 camera_dir = normalize(_camera_pos.xyz - pos);
     float3 color = 0.0f;
     for (int i = 0; i < N_LIGHTS; i++)
     {
         const float3 light_dir = normalize(_light_pos[i].xyz - pos);
         const float3 halfway = normalize(camera_dir + light_dir);
-        color += fresnelFunction(camera_dir, halfway) * (dot(light_dir, input._normal_world) > 0.0f);
+        color += fresnelFunction(camera_dir, halfway) * (dot(light_dir, normal) > 0.0f);
     }
     return float4(color, _base_color.a);
 }
 
 float4 psPBR(VsOut input) : SV_TARGET{
     const float3 pos = input._position_world.xyz;
+    const float3 normal = normalize(input._normal_world);
     const float3 camera_dir = normalize(_camera_pos.xyz - pos);
     float3 color = _base_color.rgb;
     for (int i = 0; i < N_LIGHTS; i++)
     {
         const float3 light_dir = normalize(_light_pos[i].xyz - pos);
         const float3 halfway = normalize(camera_dir + light_dir);
-        const float3 radiance = projectedRadiance(i, pos, input._normal_world);
-        color += radiance * brdf(input._normal_world, light_dir, camera_dir);
+        const float3 radiance = projectedRadiance(i, pos, normal);
+        color += radiance * brdf(normal, light_dir, camera_dir);
     }
-    color += ambient(camera_dir, input._normal_world);
+    color += ambient(camera_dir, normal);
     return float4(color, _base_color.a);
 }
 
@@ -213,11 +221,11 @@ VsCopyOut vsCopyMain(uint input : SV_VERTEXID) {
 }
 
 float4 psCopyMain(VsCopyOut input) : SV_TARGET {
-    return _texture_2d.Sample(_sam_linear, input._tex);
+    return _texture_2d.Sample(_sam_state, input._tex);
 }
 
 float4 psLogLuminanceMain(VsCopyOut input) : SV_TARGET {
-    float4 p = _texture_2d.Sample(_sam_linear, input._tex);
+    float4 p = _texture_2d.Sample(_sam_state, input._tex);
     float l = 0.2126 * p.r + 0.7151 * p.g + 0.0722 * p.b;
     return log(l + 1);
 }
@@ -246,14 +254,14 @@ float exposure() {
 
 float3 tonemapFilmic(float3 color)
 {
-    float e = exposure();
+    float e = exposure() * _exposure_scale;
     float3 curr = uncharted2Tonemap(e * color);
     float3 white_scale = 1.0f / uncharted2Tonemap(w);
     return curr * white_scale;
 }
 
 float4 psToneMappingMain(VsCopyOut input) : SV_TARGET {
-    float4 color = _texture_2d.Sample(_sam_linear, input._tex);
+    float4 color = _texture_2d.Sample(_sam_state, input._tex);
     return float4(pow(tonemapFilmic(color.xyz), 1 / 2.2), color.a);
 }
 
@@ -261,7 +269,7 @@ float4 psCubeMap(VsOut input) : SV_TARGET{
     float3 n = normalize(input._position_world.xyz);
     float u = 1.0 - atan2(n.z, n.x) / (2 * PI);
     float v = 0.5 - asin(n.y) / PI;
-    return _texture_2d.Sample(_sam_linear, float2(u, v));
+    return _texture_2d.Sample(_sam_state, float2(u, v));
 }
 
 float4 psIrradianceMap(VsOut input) : SV_TARGET{
@@ -280,11 +288,73 @@ float4 psIrradianceMap(VsOut input) : SV_TARGET{
             float3 tangentSample = float3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
             // ... и из касательного пространства в мировое
             float3 sampleVec = tangentSample.x * tangent + tangentSample.y * bitangent + tangentSample.z * normal;
-            irradiance += _texture_cube.Sample(_sam_linear, sampleVec).rgb * cos(theta) * sin(theta);
+            irradiance += _texture_cube.Sample(_sam_state, sampleVec).rgb * cos(theta) * sin(theta);
         }
     }
     irradiance = PI * irradiance / (N1 * N2);
     return float4(irradiance, 1);
+}
+
+float RadicalInverse_VdC(uint bits)
+{
+    bits = (bits << 16u) | (bits >> 16u);
+    bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+    bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+    bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+    bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+    return float(bits) * 2.3283064365386963e-10; // / 0x100000000
+}
+
+float2 Hammersley(uint i, uint N)
+{
+    return float2(float(i) / float(N), RadicalInverse_VdC(i));
+}
+
+float3 ImportanceSampleGGX(float2 Xi, float3 norm, float roughness)
+{
+    float a = roughness * roughness;
+    float phi = 2.0 * PI * Xi.x;
+    float cosTheta = sqrt((1.0 - Xi.y) / (1.0 + (a * a - 1.0) * Xi.y));
+    float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+    // Перевод сферических координат в декартовы (в касательном пространстве)
+    float3 H;
+    H.x = cos(phi) * sinTheta;
+    H.z = sin(phi) * sinTheta;
+    H.y = cosTheta;
+    // ... и из касательного пространства в мировое
+    float3 up = abs(norm.z) < 0.999 ? float3(0.0, 0.0, 1.0) : float3(1.0, 0.0, 0.0);
+    float3 tangent = normalize(cross(up, norm));
+    float3 bitangent = cross(norm, tangent);
+    float3 sampleVec = tangent * H.x + bitangent * H.z + norm * H.y;
+    return normalize(sampleVec);
+}
+
+float4 psPrefilteredColor(VsOut input) : SV_TARGET{
+    float3 norm = normalize(input._position_world.xyz);
+    float3 view = norm;
+    float totalWeight = 0.0;
+    float3 prefilteredColor = float3(0, 0, 0);
+    static const uint SAMPLE_COUNT = 1024u;
+    for (uint i = 0u; i < SAMPLE_COUNT; ++i) {
+        float2 Xi = Hammersley(i, SAMPLE_COUNT);
+        float3 H = ImportanceSampleGGX(Xi, norm, _roughness);
+        float3 L = normalize(2.0 * dot(view, H) * H - view);
+        float ndotl = max(dot(norm, L), 0.0);
+        float ndoth = max(dot(norm, H), 0.0);
+        float hdotv = max(dot(H, view), 0.0);
+        float D = DistributionGGX(norm, H, _roughness);
+        float pdf = (D * ndoth / (4.0 * hdotv)) + 0.0001;
+        float resolution = 512.0; // разрешение иcходной environment map
+        float saTexel = 4.0 * PI / (6.0 * resolution * resolution);
+        float saSample = 1.0 / (float(SAMPLE_COUNT) * pdf + 0.0001);
+        float mipLevel = _roughness == 0.0 ? 0.0 : 0.5 * log2(saSample / saTexel);
+        if (ndotl > 0.0) {
+            prefilteredColor += _texture_cube.SampleLevel(_sam_state, L, mipLevel).rgb * ndotl;
+            totalWeight += ndotl;
+        }
+    }
+    prefilteredColor = prefilteredColor / totalWeight;
+    return float4(prefilteredColor, 1);
 }
 
 VsSkymapOut vsSkymap(VsIn input) {
@@ -298,5 +368,5 @@ VsSkymapOut vsSkymap(VsIn input) {
 }
 
 float4 psSkymap(VsSkymapOut input) : SV_TARGET {
-    return _texture_cube.Sample(_sam_linear, input._tex);
+    return _texture_cube.Sample(_sam_state, input._tex);
 }
