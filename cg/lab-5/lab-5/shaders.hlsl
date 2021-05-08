@@ -82,14 +82,10 @@ float3 projectedRadiance(int index, float3 pos, float3 normal) // L_i * (l, n)
     return _light_intensity[index] * dot_multiplier / att * _light_color[index].rgb;
 }
 
-float DistributionGGX(float3 norm, float3 H, float roughness) { // D (Trowbridge-Reitz GGX)
-    const float roughness_squared = clamp(roughness * roughness, EPSILON, 1.0f);
-    const float n_dot_h = saturate(dot(norm, H));
+float ndf(float3 normal, float3 halfway) { // D (Trowbridge-Reitz GGX)
+    const float roughness_squared = clamp(_roughness * _roughness, EPSILON, 1.0f);
+    const float n_dot_h = saturate(dot(normal, halfway));
     return roughness_squared / PI / pow(n_dot_h * n_dot_h * (roughness_squared - 1.0f) + 1.0f, 2);
-}
-
-float ndf(float3 normal, float3 halfway) {
-    return DistributionGGX(normal, halfway, _roughness);
 }
 
 float geometryFunction(float3 normal, float3 dir)
@@ -342,7 +338,7 @@ float4 psPrefilteredColor(VsOut input) : SV_TARGET{
         float ndotl = max(dot(norm, L), 0.0);
         float ndoth = max(dot(norm, H), 0.0);
         float hdotv = max(dot(H, view), 0.0);
-        float D = DistributionGGX(norm, H, _roughness);
+        float D = ndf(norm, H);
         float pdf = (D * ndoth / (4.0 * hdotv)) + 0.0001;
         float resolution = 512.0; // разрешение иcходной environment map
         float saTexel = 4.0 * PI / (6.0 * resolution * resolution);
