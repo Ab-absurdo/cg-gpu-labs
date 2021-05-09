@@ -383,10 +383,12 @@ namespace rendering {
 
         _p_index_buffer = createBuffer(_p_device, sizeof(unsigned) * _indices_number, D3D11_BIND_INDEX_BUFFER, indices.data());
 
+
         _p_geometry_cbuffer = createBuffer(_p_device, sizeof(GeometryOperatorsCB), D3D11_BIND_CONSTANT_BUFFER, nullptr);
         _p_sprops_cbuffer = createBuffer(_p_device, sizeof(SurfacePropsCB), D3D11_BIND_CONSTANT_BUFFER, nullptr);
         _p_lights_cbuffer = createBuffer(_p_device, sizeof(LightsCB), D3D11_BIND_CONSTANT_BUFFER, nullptr);
         _p_adaptation_cbuffer = createBuffer(_p_device, sizeof(AdaptationCB), D3D11_BIND_CONSTANT_BUFFER, nullptr);
+
 
         D3D11_SAMPLER_DESC samp_desc;
         ZeroMemory(&samp_desc, sizeof(samp_desc));
