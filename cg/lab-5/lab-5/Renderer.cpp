@@ -190,6 +190,7 @@ namespace rendering {
         _p_pixel_shader_cube_map = createPixelShader(_p_device, L"../../lab-5/shaders.hlsl", "psCubeMap", "ps_5_0", flags);
         _p_pixel_shader_irradiance_map = createPixelShader(_p_device, L"../../lab-5/shaders.hlsl", "psIrradianceMap", "ps_5_0", flags);
         _p_pixel_shader_prefiltered_color = createPixelShader(_p_device, L"../../lab-5/shaders.hlsl", "psPrefilteredColor", "ps_5_0", flags);
+        _p_pixel_shader_preintegrated_brdf = createPixelShader(_p_device, L"../../lab-5/shaders.hlsl", "psPreintegratedBRDF", "ps_5_0", flags);
 
         _p_vertex_shader_copy = createVertexShader(_p_device, L"../../lab-5/shaders.hlsl", "vsCopyMain", "vs_5_0", flags);
         _p_pixel_shader_copy = createPixelShader(_p_device, L"../../lab-5/shaders.hlsl", "psCopyMain", "ps_5_0", flags);
@@ -354,6 +355,67 @@ namespace rendering {
         p_sm_texture->Release();
     }
 
+    void Renderer::createPreintegratedBRDF(UINT size) {
+        CD3D11_TEXTURE2D_DESC sm_desc(DXGI_FORMAT_R32G32B32A32_FLOAT, size, size, 1, 1);
+        ID3D11Texture2D* p_sm_texture = nullptr;
+        _p_device->CreateTexture2D(&sm_desc, nullptr, &p_sm_texture);
+
+        DX::RenderTexture rt;
+        rt.SetDevice(_p_device);
+        rt.SizeResources(size, size);
+
+        auto p_rtv = rt.GetRenderTargetView();
+        _p_device_context->OMSetRenderTargets(1, &p_rtv, nullptr);
+
+        D3D11_VIEWPORT vp = { 0, 0, (FLOAT)size, (FLOAT)size, 0, 1 };
+        _p_device_context->RSSetViewports(1, &vp);
+
+        _p_device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        _p_device_context->IASetInputLayout(_p_input_layout);
+
+        SimpleVertex verts[4] = {
+            { { 0.0f, 0.0f, 0.5f } },
+            { { 0.0f, 1.0f, 0.5f } },
+            { { 1.0f, 1.0f, 0.5f } },
+            { { 1.0f, 0.0f, 0.5f } }
+        };
+
+        unsigned inds[6] = {
+            0, 1, 2,
+            2, 3, 0
+        };
+
+        auto p_index_buffer = createBuffer(_p_device, sizeof(unsigned) * 6, D3D11_BIND_INDEX_BUFFER, inds);
+        _p_device_context->IASetIndexBuffer(p_index_buffer, DXGI_FORMAT_R32_UINT, 0);
+        p_index_buffer->Release();
+
+        _p_device_context->VSSetShader(_p_vertex_shader, nullptr, 0);
+        _p_device_context->PSSetShader(_p_pixel_shader_preintegrated_brdf, nullptr, 0);
+
+        GeometryOperatorsCB geometry_cbuffer;
+        geometry_cbuffer._world = DirectX::XMMatrixTranspose(DirectX::XMMatrixIdentity());
+        geometry_cbuffer._projection = DirectX::XMMatrixTranspose(DirectX::XMMatrixPerspectiveFovLH(DirectX::XM_PIDIV2, 1, 0.01f, 1));
+
+        auto p_vertex_buffer = createBuffer(_p_device, sizeof(SimpleVertex) * 4, D3D11_BIND_VERTEX_BUFFER, verts);
+        _p_device_context->IASetVertexBuffers(0, 1, &p_vertex_buffer, &_vertex_stride, &_vertex_offset);
+        p_vertex_buffer->Release();
+
+        Camera camera({ 0.5f, 0.5f, 0.0f });
+        geometry_cbuffer._view = DirectX::XMMatrixTranspose(camera.getViewMatrix());
+        _p_device_context->UpdateSubresource(_p_geometry_cbuffer, 0, nullptr, &geometry_cbuffer, 0, 0);
+        _p_device_context->VSSetConstantBuffers(0, 1, &_p_geometry_cbuffer);
+
+        _p_device_context->ClearRenderTargetView(p_rtv, DirectX::Colors::Black);
+        _p_device_context->DrawIndexed(6, 0, 0);
+        _p_device_context->CopySubresourceRegion(p_sm_texture, 0, 0, 0, 0, rt.GetRenderTarget(), 0, nullptr);
+
+        _p_device_context->PSSetShaderResources(0, _s_MAX_NUM_SHADER_RESOURCE_VIEWS, _null_shader_resource_views);
+
+        CD3D11_SHADER_RESOURCE_VIEW_DESC smrv_desc(D3D11_SRV_DIMENSION_TEXTURE2D, sm_desc.Format, 0, sm_desc.MipLevels);
+        _p_device->CreateShaderResourceView(p_sm_texture, &smrv_desc, &_p_smrv_preintegrated);
+        p_sm_texture->Release();
+    }
+
     void Renderer::initScene() {
         _borders._min = { -20.0f, -10.0f, -20.0f };
         _borders._max = { 20.0f, 10.0f, 20.0f };
@@ -458,6 +520,8 @@ namespace rendering {
         createCubeMap(32, 1, _p_pixel_shader_irradiance_map, &_p_smrv_sky, &_p_smrv_irradiance);
 
         createCubeMap(128, 5, _p_pixel_shader_prefiltered_color, &_p_smrv_sky, &_p_smrv_prefiltered);
+
+        createPreintegratedBRDF(32);
     }
 
     void Renderer::render() {
@@ -763,6 +827,7 @@ namespace rendering {
         _p_smrv_sky->Release();
         _p_smrv_irradiance->Release();
         _p_smrv_prefiltered->Release();
+        _p_smrv_preintegrated->Release();
 
         _p_vertex_shader->Release();
         _p_vertex_shader_copy->Release();
@@ -777,6 +842,7 @@ namespace rendering {
         _p_pixel_shader_cube_map->Release();
         _p_pixel_shader_irradiance_map->Release();
         _p_pixel_shader_prefiltered_color->Release();
+        _p_pixel_shader_preintegrated_brdf->Release();
         _p_pixel_shader_copy->Release();
         _p_pixel_shader_log_luminance->Release();
         _p_pixel_shader_tone_mapping->Release();

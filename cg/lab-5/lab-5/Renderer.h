@@ -34,6 +34,7 @@ namespace rendering {
         void initScene();
 
         void createCubeMap(UINT size, UINT mip_levels, ID3D11PixelShader* p_pixel_shader, ID3D11ShaderResourceView** p_p_smrv_src, ID3D11ShaderResourceView** p_p_smrv_dst);
+        void createPreintegratedBRDF(UINT size);
 
         void resizeResources(size_t width, size_t height);
 
@@ -62,6 +63,7 @@ namespace rendering {
         ID3D11PixelShader* _p_pixel_shader_cube_map = nullptr;
         ID3D11PixelShader* _p_pixel_shader_irradiance_map = nullptr;
         ID3D11PixelShader* _p_pixel_shader_prefiltered_color = nullptr;
+        ID3D11PixelShader* _p_pixel_shader_preintegrated_brdf = nullptr;
         ID3D11PixelShader* _p_pixel_shader_copy = nullptr;
         ID3D11PixelShader* _p_pixel_shader_log_luminance = nullptr;
         ID3D11PixelShader* _p_pixel_shader_tone_mapping = nullptr;
@@ -123,6 +125,7 @@ namespace rendering {
         ID3D11ShaderResourceView* _p_smrv_sky = nullptr;
         ID3D11ShaderResourceView* _p_smrv_irradiance = nullptr;
         ID3D11ShaderResourceView* _p_smrv_prefiltered = nullptr;
+        ID3D11ShaderResourceView* _p_smrv_preintegrated = nullptr;
 
         static const size_t _s_MAX_NUM_SHADER_RESOURCE_VIEWS = 128;
         ID3D11ShaderResourceView* const _null_shader_resource_views[_s_MAX_NUM_SHADER_RESOURCE_VIEWS] = { nullptr };
