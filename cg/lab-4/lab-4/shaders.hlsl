@@ -6,9 +6,8 @@ static const int N1 = 800;
 static const int N2 = 200;
 
 Texture2D _texture_2d : register(t0);
+
 TextureCube _texture_cube : register(t0);
-
-
 
 SamplerState _sam_linear : register(s0);
 
