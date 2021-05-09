@@ -6,10 +6,14 @@ static const int N1 = 800;
 static const int N2 = 200;
 
 Texture2D _texture_2d : register(t0);
+TextureCube _sky : register(t0);
 
-TextureCube _texture_cube : register(t0);
+TextureCube _irradiance : register(t0);
+TextureCube _prefiltered : register(t1);
+Texture2D _preintegrated : register(t2);
 
-SamplerState _sam_state : register(s0);
+SamplerState _min_mag_mip_linear : register(s0);
+SamplerState _min_mag_linear_mip_point_border : register(s1);
 
 cbuffer GeometryOperators : register(b0)
 {
@@ -112,10 +116,8 @@ float3 fresnelFunction(float3 camera_dir, float3 halfway)
     return F0 + (1.0f - F0) * pow(1.0f - dot_multiplier, 5);
 }
 
-float3 fresnelFunctionAmbient(float3 camera_dir, float3 normal)
+float3 fresnelFunctionAmbient(float3 F0, float3 camera_dir, float3 normal)
 {
-    const float3 F0_noncond = 0.04f;
-    const float3 F0 = (1.0 - _metalness) * F0_noncond + _metalness * _base_color.rgb;
     const float dot_multiplier = saturate(dot(camera_dir, normal));
     return F0 + (max(1.0f - _roughness, F0) - F0) * pow(1.0f - dot_multiplier, 5);
 }
@@ -134,15 +136,23 @@ float3 brdf(float3 normal, float3 light_dir, float3 camera_dir)
     return f_lamb + f_ct;
 }
 
-float3 ambient(float3 camera_dir, float3 normal)
+float3 ambient(float3 v, float3 n)
 {
-    float3 F = fresnelFunctionAmbient(camera_dir, normal);
+    float3 r = normalize(reflect(-v, n));
+
+    static const float MAX_REFLECTION_LOD = 4.0;
+    float3 prefilteredColor = _prefiltered.SampleLevel(_min_mag_mip_linear, r, _roughness * MAX_REFLECTION_LOD).rgb;
+    float3 F0 = lerp(float3(0.04, 0.04, 0.04), _base_color.rgb, _metalness);
+    float3 F = fresnelFunctionAmbient(F0, v, n);
+    float2 envBRDF = _preintegrated.Sample(_min_mag_linear_mip_point_border, float2(max(dot(n, v), 0.0), _roughness)).xy;
+    float3 specular = prefilteredColor * (F0 * envBRDF.x + envBRDF.y);
+
     float3 kS = F;
     float3 kD = float3(1.0, 1.0, 1.0) - kS;
     kD *= 1.0 - _metalness;
-    float3 irradiance = _texture_cube.Sample(_sam_state, normal).rgb;
-    float3 diffuse = irradiance * _base_color.xyz;
-    return kD * diffuse;
+    float3 irradiance = _irradiance.SampleLevel(_min_mag_mip_linear, n, 0).rgb;
+    float3 diffuse = irradiance * _base_color.rgb;
+    return kD * diffuse + specular;
 }
 
 float4 psLambert(VsOut input) : SV_TARGET{
@@ -221,11 +231,11 @@ VsCopyOut vsCopyMain(uint input : SV_VERTEXID) {
 }
 
 float4 psCopyMain(VsCopyOut input) : SV_TARGET {
-    return _texture_2d.Sample(_sam_state, input._tex);
+    return _texture_2d.Sample(_min_mag_mip_linear, input._tex);
 }
 
 float4 psLogLuminanceMain(VsCopyOut input) : SV_TARGET {
-    float4 p = _texture_2d.Sample(_sam_state, input._tex);
+    float4 p = _texture_2d.Sample(_min_mag_mip_linear, input._tex);
     float l = 0.2126 * p.r + 0.7151 * p.g + 0.0722 * p.b;
     return log(l + 1);
 }
@@ -261,7 +271,7 @@ float3 tonemapFilmic(float3 color)
 }
 
 float4 psToneMappingMain(VsCopyOut input) : SV_TARGET {
-    float4 color = _texture_2d.Sample(_sam_state, input._tex);
+    float4 color = _texture_2d.Sample(_min_mag_mip_linear, input._tex);
     return float4(pow(tonemapFilmic(color.xyz), 1 / 2.2), color.a);
 }
 
@@ -269,7 +279,7 @@ float4 psCubeMap(VsOut input) : SV_TARGET{
     float3 n = normalize(input._position_world.xyz);
     float u = 1.0 - atan2(n.z, n.x) / (2 * PI);
     float v = 0.5 - asin(n.y) / PI;
-    return _texture_2d.Sample(_sam_state, float2(u, v));
+    return _texture_2d.Sample(_min_mag_mip_linear, float2(u, v));
 }
 
 float4 psIrradianceMap(VsOut input) : SV_TARGET{
@@ -288,7 +298,7 @@ float4 psIrradianceMap(VsOut input) : SV_TARGET{
             float3 tangentSample = float3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
             // ... и из касательного пространства в мировое
             float3 sampleVec = tangentSample.x * tangent + tangentSample.y * bitangent + tangentSample.z * normal;
-            irradiance += _texture_cube.Sample(_sam_state, sampleVec).rgb * cos(theta) * sin(theta);
+            irradiance += _sky.SampleLevel(_min_mag_mip_linear, sampleVec, 0).rgb * cos(theta) * sin(theta);
         }
     }
     irradiance = PI * irradiance / (N1 * N2);
@@ -349,7 +359,7 @@ float4 psPrefilteredColor(VsOut input) : SV_TARGET{
         float saSample = 1.0 / (float(SAMPLE_COUNT) * pdf + 0.0001);
         float mipLevel = _roughness == 0.0 ? 0.0 : 0.5 * log2(saSample / saTexel);
         if (ndotl > 0.0) {
-            prefilteredColor += _texture_cube.SampleLevel(_sam_state, L, mipLevel).rgb * ndotl;
+            prefilteredColor += _sky.SampleLevel(_min_mag_mip_linear, L, mipLevel).rgb * ndotl;
             totalWeight += ndotl;
         }
     }
@@ -410,5 +420,5 @@ VsSkymapOut vsSkymap(VsIn input) {
 }
 
 float4 psSkymap(VsSkymapOut input) : SV_TARGET {
-    return _texture_cube.Sample(_sam_state, input._tex);
+    return _sky.SampleLevel(_min_mag_mip_linear, input._tex, 0);
 }

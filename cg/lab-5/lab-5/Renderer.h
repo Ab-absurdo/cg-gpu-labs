@@ -110,7 +110,8 @@ namespace rendering {
         ID3D11Buffer* _p_lights_cbuffer = nullptr;
         ID3D11Buffer* _p_adaptation_cbuffer = nullptr;
 
-        ID3D11SamplerState* _p_sampler_linear = nullptr;
+        ID3D11SamplerState* _p_min_mag_mip_linear = nullptr;
+        ID3D11SamplerState* _p_min_mag_linear_mip_point_border = nullptr;
 
         ID3DUserDefinedAnnotation* _p_annotation = nullptr;
 

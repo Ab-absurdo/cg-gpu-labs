@@ -312,7 +312,7 @@ namespace rendering {
         _p_device_context->PSSetShader(p_pixel_shader, nullptr, 0);
 
         _p_device_context->PSSetShaderResources(0, 1, p_p_smrv_src);
-        _p_device_context->PSSetSamplers(0, 1, &_p_sampler_linear);
+        _p_device_context->PSSetSamplers(0, 1, &_p_min_mag_mip_linear);
 
         GeometryOperatorsCB geometry_cbuffer;
         geometry_cbuffer._world = DirectX::XMMatrixTranspose(DirectX::XMMatrixIdentity());
@@ -461,7 +461,14 @@ namespace rendering {
         samp_desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
         samp_desc.MinLOD = 0;
         samp_desc.MaxLOD = D3D11_FLOAT32_MAX;
-        HRESULT hr = _p_device->CreateSamplerState(&samp_desc, &_p_sampler_linear);
+        HRESULT hr = _p_device->CreateSamplerState(&samp_desc, &_p_min_mag_mip_linear);
+        assert(SUCCEEDED(hr));
+
+        samp_desc.Filter = D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT;
+        samp_desc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+        samp_desc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+        samp_desc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+        hr = _p_device->CreateSamplerState(&samp_desc, &_p_min_mag_linear_mip_point_border);
         assert(SUCCEEDED(hr));
 
         {
@@ -608,7 +615,10 @@ namespace rendering {
             _p_device_context->PSSetConstantBuffers(3, 1, &_p_adaptation_cbuffer);
 
             _p_device_context->PSSetShaderResources(0, 1, &_p_smrv_irradiance);
-            _p_device_context->PSSetSamplers(0, 1, &_p_sampler_linear);
+            _p_device_context->PSSetShaderResources(1, 1, &_p_smrv_prefiltered);
+            _p_device_context->PSSetShaderResources(2, 1, &_p_smrv_preintegrated);
+            _p_device_context->PSSetSamplers(0, 1, &_p_min_mag_mip_linear);
+            _p_device_context->PSSetSamplers(1, 1, &_p_min_mag_linear_mip_point_border);
 
             _p_annotation->BeginEvent(L"Draw");
             _p_device_context->DrawIndexed(_indices_number, 0, 0);
@@ -631,7 +641,7 @@ namespace rendering {
             _p_device_context->PSSetShader(_p_skymap_ps, nullptr, 0);
 
             _p_device_context->PSSetShaderResources(0, 1, &_p_smrv_sky);
-            _p_device_context->PSSetSamplers(0, 1, &_p_sampler_linear);
+            _p_device_context->PSSetSamplers(0, 1, &_p_min_mag_mip_linear);
 
             _p_device_context->DrawIndexed(_env_indices_number, 0, 0);
 
@@ -646,7 +656,7 @@ namespace rendering {
                 size_t n = _log_luminance_textures.size() - 1;
                 D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << n), FLOAT(1 << n), 0, 1 };
 
-                renderTexture(_p_device_context, &square_copy_render_target_view, vp, _p_vertex_shader_copy, _p_pixel_shader_copy, &render_texture_shader_resource_view, &_p_sampler_linear);
+                renderTexture(_p_device_context, &square_copy_render_target_view, vp, _p_vertex_shader_copy, _p_pixel_shader_copy, &render_texture_shader_resource_view, &_p_min_mag_mip_linear);
             }
 
             {
@@ -656,7 +666,7 @@ namespace rendering {
                 size_t n = _log_luminance_textures.size() - 1;
                 D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << n), FLOAT(1 << n), 0, 1 };
 
-                renderTexture(_p_device_context, &first_log_luminance_texture_render_target_view, vp, _p_vertex_shader_copy, _p_pixel_shader_log_luminance, &square_copy_shader_resource_view, &_p_sampler_linear);
+                renderTexture(_p_device_context, &first_log_luminance_texture_render_target_view, vp, _p_vertex_shader_copy, _p_pixel_shader_log_luminance, &square_copy_shader_resource_view, &_p_min_mag_mip_linear);
             }
 
             {
@@ -668,7 +678,7 @@ namespace rendering {
 
                     D3D11_VIEWPORT vp = { 0, 0, FLOAT(1 << (n - i)), FLOAT(1 << (n - i)), 0, 1 };
 
-                    renderTexture(_p_device_context, &next_log_luminance_texture_render_target_view, vp, _p_vertex_shader_copy, _p_pixel_shader_copy, &previous_log_luminance_texture_shader_resource_view, &_p_sampler_linear);
+                    renderTexture(_p_device_context, &next_log_luminance_texture_render_target_view, vp, _p_vertex_shader_copy, _p_pixel_shader_copy, &previous_log_luminance_texture_shader_resource_view, &_p_min_mag_mip_linear);
                 }
             }
 
@@ -692,7 +702,7 @@ namespace rendering {
                 auto render_texture_shader_resource_view = _render_texture.GetShaderResourceView();
 
                 renderTexture(_p_device_context, &_p_render_target_view, _viewport, _p_vertex_shader_copy,
-                    _p_pixel_shader_tone_mapping, &render_texture_shader_resource_view, &_p_sampler_linear, &_p_adaptation_cbuffer, &adaptation_cbuffer);
+                    _p_pixel_shader_tone_mapping, &render_texture_shader_resource_view, &_p_min_mag_mip_linear, &_p_adaptation_cbuffer, &adaptation_cbuffer);
             }
         }
 
@@ -820,7 +830,8 @@ namespace rendering {
 
         _p_input_layout->Release();
 
-        _p_sampler_linear->Release();
+        _p_min_mag_mip_linear->Release();
+        _p_min_mag_linear_mip_point_border->Release();
 
         _average_log_luminance_texture->Release();
 

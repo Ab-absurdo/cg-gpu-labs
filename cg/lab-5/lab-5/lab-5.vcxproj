@@ -198,9 +198,6 @@
     <ClInclude Include="STBImage\stb_image.h" />
     <ClInclude Include="WorldBorders.h" />
   </ItemGroup>
-  <ItemGroup>
-    <Image Include="seafloor.dds" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

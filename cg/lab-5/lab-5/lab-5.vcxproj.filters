@@ -123,9 +123,4 @@
       <Filter>STBImage</Filter>
     </ClInclude>
   </ItemGroup>
-  <ItemGroup>
-    <Image Include="seafloor.dds">
-      <Filter>Файлы ресурсов</Filter>
-    </Image>
-  </ItemGroup>
 </Project>
