@@ -501,7 +501,7 @@ namespace rendering {
         _p_sphere_index_buffer = createBuffer(_p_device, sizeof(unsigned) * _env_indices_number, D3D11_BIND_INDEX_BUFFER, env_indices.data());
 
         int x, y, channels_in_file;
-        float* data = stbi_loadf("../../lab-5/rooitou_park_1k.hdr", &x, &y, &channels_in_file, STBI_rgb_alpha);
+        float* data = stbi_loadf("../../lab-5/kloppenheim_01_1k.hdr", &x, &y, &channels_in_file, STBI_rgb_alpha);
         assert(data);
 
         CD3D11_TEXTURE2D_DESC sm_desc(DXGI_FORMAT_R32G32B32A32_FLOAT, x, y, 1, 1, D3D11_BIND_SHADER_RESOURCE);
